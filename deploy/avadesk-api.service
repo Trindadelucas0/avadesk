@@ -1,0 +1,16 @@
+[Unit]
+Description=Avadesk API (Express)
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/avadesk
+EnvironmentFile=/opt/avadesk/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node apps/api/dist/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
