@@ -2,8 +2,8 @@
 
 | Item | Valor |
 |------|--------|
-| Versão do sistema | 3.14.7 — Chamados |
-| Última atualização | 11/09/2026 (dev web: webpack na porta 3000; SW não cacheia HTML 404) |
+| Versão do sistema | 3.14.8 — Deploy VPS |
+| Última atualização | 11/09/2026 (VPS Hostinger: portas 3105/4105/5436; clone GitHub) |
 | Fonte oficial | Este arquivo |
 | Guia de uso | [docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md) |
 | PRD / wireframes | [docs/PRD-NEXUS-PORTAL-CLIENTE.md](docs/PRD-NEXUS-PORTAL-CLIENTE.md) |
@@ -32,6 +32,7 @@ Tutorial: **[docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md)**.
 
 | Versão | Nome | Mudança |
 |--------|------|---------|
+| 3.14.8 | Deploy VPS | Produção isolada em `127.0.0.1:3105` (web), `:4105` (API), `:5436` (Postgres). Clone [avadesk.git](https://github.com/Trindadelucas0/avadesk.git) em `/opt/avadesk`. Cloudflare aponta HTTP `127.0.0.1:3105`. Guia: [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md). API aceita `HOST` (VPS: `127.0.0.1`). Sem mudança de telas ou regras. |
 | 1.0.0 | Portal V1 | API + UI lean `/admin` `/portal` |
 | 2.0.x | Client Hub | UI `/client` `/admin`, hub_state JSON |
 | 3.14.7 | Chamados | `next dev --port 3000` (webpack, porta fixa). SW `avadesk-shell-v5`: navegação network-first, não cacheia resposta `status >= 400`. Um único Next em localhost:3000. |
@@ -437,6 +438,8 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 `.env.example`: `DATABASE_URL` (`localhost:5434/nexus`), `DATABASE_URL_TEST` (`localhost:5434/nexus_test`, só `npm test`), `SESSION_SECRET`, `CREDENTIALS_KEY`, `RESEND_API_KEY` (vazio no example), `EMAIL_FROM` (`Avadesk <onboarding@resend.dev>`), `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (pública no frontend; privada só na API), `WEB_ORIGIN`, `API_URL`. Sem `DB_HOST` / `JWT_SECRET`. Não commitar `.env`. Remetente sandbox só entrega para o e-mail da conta Resend.
 
 Web em desenvolvimento: um processo Next em **http://localhost:3000** (`next dev --port 3000`, webpack). Feche extras em 3001–3005. API em **http://localhost:4000** (um processo). `npm run dev` na raiz sobe os dois.
+
+Produção VPS (Hostinger, **somente adicionar**): pasta `/opt/avadesk`, clone de [https://github.com/Trindadelucas0/avadesk.git](https://github.com/Trindadelucas0/avadesk.git). Web `127.0.0.1:3105`, API `HOST=127.0.0.1` `PORT=4105`, Postgres container `avadesk-pg` em `127.0.0.1:5436`. Units `avadesk-web` / `avadesk-api`. Cloudflare Public Hostname novo → HTTP `127.0.0.1:3105`. Depois `WEB_ORIGIN=https://SEU-SUBDOMINIO`. Passo a passo: **[docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md)**. Não reutilizar 3000/4000 nem parar serviços alheios.
 
 Rotas legado Express `/auth` `/projects` `/updates` `/hub` ainda existem (ops/migrate). Next `POST /api/hub/login` encaminha para `/v2/auth/login`; `GET /api/hub/state` encaminha para `/v2/bootstrap` (compat PWA). A UI nova usa `/api/v2`. V1 `/projects` não devolve `access_password`.
 
