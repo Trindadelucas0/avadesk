@@ -17,8 +17,8 @@ Não reutilizar 3000, 4000 nem as demais ocupadas no host.
 
 | Serviço | Bind | Unit / container |
 |---------|------|------------------|
-| Web (único origin no Cloudflare) | `127.0.0.1:3105` | `avadesk-web.service` |
-| API | `127.0.0.1:4105` | `avadesk-api.service` |
+| Web (único origin no Cloudflare) | `127.0.0.1:3105` | PM2 `avadesk-web` |
+| API | `127.0.0.1:4105` | PM2 `avadesk-api` |
 | Postgres | `127.0.0.1:5436` | container `avadesk-pg` |
 
 Se alguma estiver ocupada, subir 1 (ex. 3107). API e Postgres **não** entram no túnel.
@@ -40,14 +40,16 @@ Reiniciar só `avadesk-web` e `avadesk-api`.
 
 Se o túnel for arquivo local, **inserir** um `hostname` no topo do ingress, acima do catch-all `http_status:404`.
 
-## Units
+## PM2
 
-Arquivos em `deploy/avadesk-api.service` e `deploy/avadesk-web.service`. Copiar para `/etc/systemd/system/` e:
+Não parar `crm`, `app-rft`, `exito-formulario` nem outros apps. Só criar/reiniciar `avadesk-api` e `avadesk-web`:
 
 ```bash
-systemctl daemon-reload
-systemctl enable --now avadesk-api avadesk-web
+bash /opt/avadesk/deploy/avadesk-pm2-start.sh
+pm2 save
 ```
+
+Units systemd em `deploy/avadesk-*.service` são opcionais (a VPS Hostinger usa PM2).
 
 ## Health
 

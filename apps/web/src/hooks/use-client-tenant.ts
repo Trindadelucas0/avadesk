@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useHubStore } from "@/stores/hub-store";
 import { clientAccessibleProjects } from "@/lib/access";
-import type { Project, Ticket, UpdateItem } from "@/types";
+import type { Project, UpdateItem } from "@/types";
 
 function sortByDateDesc<T extends { createdAt?: string; releasedAt?: string; uploadedAt?: string }>(
   items: T[],

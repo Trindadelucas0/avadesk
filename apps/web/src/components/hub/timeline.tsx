@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { cn, formatDate, formatDateTime, formatRelative, statusLabel } from "@/lib/utils";
+import { cn, formatDate, formatDateTime, formatRelative } from "@/lib/utils";
 import { StatusBadge, TypeBadge } from "@/components/hub/status-badge";
 import { Modal } from "@/components/hub/modal";
 import { Button } from "@/components/ui/button";
