@@ -1,0 +1,17 @@
+[Unit]
+Description=Avadesk Web (Next.js)
+After=network.target avadesk-api.service
+Wants=avadesk-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/avadesk/apps/web
+EnvironmentFile=/opt/avadesk/.env
+Environment=NODE_ENV=production
+Environment=PORT=3105
+ExecStart=/usr/bin/node /opt/avadesk/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3105
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

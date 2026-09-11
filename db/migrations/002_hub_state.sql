@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS hub_state (
+  id TEXT PRIMARY KEY,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

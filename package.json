@@ -1,0 +1,24 @@
+{
+  "name": "nexus-client-portal",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -k --restart-tries 0 -n api,web -c cyan,magenta \"npm run dev -w @nexus/api\" \"npm run dev -w @nexus/web\"",
+    "build": "npm run build -w @nexus/api && npm run build -w @nexus/web",
+    "start": "concurrently -k -n api,web -c cyan,magenta \"npm run start -w @nexus/api\" \"npm run start -w @nexus/web\"",
+    "test": "npm run test -w @nexus/api",
+    "migrate": "npm run migrate -w @nexus/api",
+    "migrate:hub": "npm run migrate:hub -w @nexus/api",
+    "seed": "npm run seed -w @nexus/api",
+    "typecheck": "npm run typecheck -w @nexus/api",
+    "dev:api": "npm run dev -w @nexus/api",
+    "dev:web": "npm run dev -w @nexus/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
