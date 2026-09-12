@@ -13,7 +13,7 @@ export const AUTH_CTA =
   "auth-cta inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[15px] font-semibold";
 
 export const AUTH_CTA_ACCENT =
-  "auth-cta-accent border-0 bg-[linear-gradient(180deg,#8aa4ff_0%,var(--accent)_100%)] text-white shadow-[0_10px_24px_rgba(107,140,255,0.32)] hover:brightness-110";
+  "auth-cta-accent border-0 bg-[image:var(--accent-gradient)] text-white shadow-[var(--accent-shadow-lg)] hover:brightness-110";
 
 export function AuthShell({ children, wide }: { children: ReactNode; wide?: boolean }) {
   return (
@@ -21,10 +21,7 @@ export function AuthShell({ children, wide }: { children: ReactNode; wide?: bool
       <ConnectedParticles />
       <div
         className="pointer-events-none absolute inset-0 z-[1] opacity-60"
-        style={{
-          background:
-            "radial-gradient(600px 320px at 50% 20%, rgba(107,140,255,0.12), transparent 60%)",
-        }}
+        style={{ background: "var(--auth-glow)" }}
       />
       <div className={cn("relative z-10 w-full animate-fade-in", wide ? "max-w-[480px]" : "max-w-[420px]")}>
         {children}
@@ -37,7 +34,7 @@ export function AuthMark() {
   return (
     <div
       className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl text-lg font-semibold text-white shadow-[0_10px_24px_rgba(107,140,255,0.4)]"
-      style={{ background: "linear-gradient(145deg, #8aa4ff 0%, #4d6ef5 100%)" }}
+      style={{ background: "var(--brand-gradient)" }}
       aria-hidden
     >
       ◈
@@ -64,9 +61,7 @@ export function AuthHeader({
     <div className="mb-7 flex items-start gap-3">
       <div
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] text-white shadow-[0_8px_18px_rgba(107,140,255,0.35)]"
-        style={{
-          background: "linear-gradient(145deg, #8aa4ff 0%, #4d6ef5 100%)",
-        }}
+        style={{ background: "var(--brand-gradient)" }}
         aria-hidden
       >
         <Icon className="h-5 w-5" strokeWidth={2.2} />

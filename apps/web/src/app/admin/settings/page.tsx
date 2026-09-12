@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/hub/page-header";
 import { Settings } from "lucide-react";
 import { DataTable } from "@/components/hub/filter-table";
 import { EmptyState } from "@/components/hub/states";
+import { ThemePicker } from "@/components/hub/theme-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useHubStore } from "@/stores/hub-store";
@@ -48,6 +49,14 @@ export default function AdminSettingsPage() {
   return (
     <div>
       <PageHeader icon={Settings} title="Configurações" description="Preferências da organização." />
+
+      <section className="hub-surface mb-6 p-5">
+        <h2 className="text-sm font-medium">Aparência</h2>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          Tema da interface neste dispositivo.
+        </p>
+        <ThemePicker className="mt-4 max-w-md" />
+      </section>
 
       <section className="hub-surface mb-10 p-5">
         <h2 className="text-sm font-medium">Organização</h2>

@@ -1,4 +1,6 @@
 export { AppShell } from "./app-shell";
+export { ThemeToggle } from "./theme-toggle";
+export { ThemePicker } from "./theme-picker";
 export { OwnProfileCard } from "./own-profile-card";
 export { StatusBadge, TypeBadge } from "./status-badge";
 export { ProgressBar, ProjectProgress } from "./progress";

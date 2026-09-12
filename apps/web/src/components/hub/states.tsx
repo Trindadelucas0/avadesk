@@ -16,7 +16,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border-strong)] bg-[rgba(12,18,28,0.6)] px-6 py-14 text-center shadow-[0_0_28px_rgba(107,140,255,0.06)]",
+        "flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--empty-bg)] px-6 py-14 text-center",
         className
       )}
     >
@@ -70,7 +70,7 @@ export function Skeleton({ className }: { className?: string }) {
       )}
       aria-hidden
     >
-      <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+      <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-[var(--shimmer)] to-transparent" />
     </div>
   );
 }

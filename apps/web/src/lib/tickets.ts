@@ -1,11 +1,14 @@
 import type { Ticket, TicketStage, TicketType } from "@/types";
 
-export const TICKET_TYPES: { value: TicketType; label: string }[] = [
-  { value: "bug", label: "Bug" },
-  { value: "implementation", label: "Implementação" },
-  { value: "feature", label: "Funcionalidade nova" },
-  { value: "routine", label: "Atualização de rotina" },
+export const TICKET_TYPES: { value: TicketType; label: string; hint: string }[] = [
+  { value: "bug", label: "Bug", hint: "Algo quebrou" },
+  { value: "implementation", label: "Implementação", hint: "Pedido para o time implementar" },
+  { value: "feature", label: "Funcionalidade nova", hint: "O usuário passa a fazer algo novo" },
+  { value: "routine", label: "Atualização de rotina", hint: "Mudança em uma rotina existente" },
+  { value: "other", label: "Outra coisa", hint: "Dê um nome e descreva" },
 ];
+
+export const CLIENT_TICKET_TYPE_VALUES: TicketType[] = ["bug", "other"];
 
 export function ticketTypeLabel(type: TicketType): string {
   return TICKET_TYPES.find((t) => t.value === type)?.label ?? type;
@@ -45,6 +48,9 @@ export type TicketFieldDef = {
   label: string;
   required: boolean;
   kind: "input" | "textarea";
+  maxLength?: number;
+  minLength?: number;
+  placeholder?: string;
 };
 
 export function ticketFieldDefs(type: TicketType): TicketFieldDef[] {
@@ -72,6 +78,26 @@ export function ticketFieldDefs(type: TicketType): TicketFieldDef[] {
         { key: "routineName", label: "Qual rotina", required: true, kind: "input" },
         { key: "whatChanges", label: "O que muda", required: true, kind: "textarea" },
         { key: "when", label: "Quando / frequência", required: false, kind: "input" },
+      ];
+    case "other":
+      return [
+        {
+          key: "customName",
+          label: "Como você chama isso?",
+          required: true,
+          kind: "input",
+          maxLength: 60,
+          minLength: 2,
+          placeholder: "ex. Relatório de estoque que falta",
+        },
+        {
+          key: "what",
+          label: "O que você precisa?",
+          required: true,
+          kind: "textarea",
+          maxLength: 4000,
+          placeholder: "Descreva com o máximo de detalhe…",
+        },
       ];
   }
 }

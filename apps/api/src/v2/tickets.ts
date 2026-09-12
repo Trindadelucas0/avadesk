@@ -79,11 +79,34 @@ const routineFields = z
   })
   .strict();
 
+const ticketTypeEnum = z.enum(["bug", "implementation", "feature", "routine", "other"]);
+const CLIENT_CREATE_TICKET_TYPES = new Set(["bug", "other"]);
+
+const otherFields = z
+  .object({
+    customName: z.string().trim().min(2).max(60),
+    what: z.string().trim().min(1).max(4000),
+  })
+  .strict();
+
 function parseFields(type: string, fields: unknown) {
   if (type === "bug") return bugFields.safeParse(fields);
   if (type === "implementation") return implementationFields.safeParse(fields);
   if (type === "feature") return featureFields.safeParse(fields);
-  return routineFields.safeParse(fields);
+  if (type === "routine") return routineFields.safeParse(fields);
+  if (type === "other") return otherFields.safeParse(fields);
+  return bugFields.safeParse(undefined);
+}
+
+function clientMaySetTicketType(type: string, existingType?: string): boolean {
+  if (CLIENT_CREATE_TICKET_TYPES.has(type)) return true;
+  return Boolean(existingType && type === existingType);
+}
+
+function ticketTitleFromFields(type: string, title: string, fields: unknown): string {
+  if (type !== "other" || !fields || typeof fields !== "object") return title;
+  const name = (fields as { customName?: unknown }).customName;
+  return typeof name === "string" && name.trim() ? name.trim() : title;
 }
 
 type TicketRow = Record<string, unknown>;
@@ -503,15 +526,18 @@ function ticketContentEditable(stage: string, events: TicketEventDto[]): boolean
 }
 
 const contentSchema = z.object({
-  type: z.enum(["bug", "implementation", "feature", "routine"]),
+  type: ticketTypeEnum,
   title: z.string().trim().min(1).max(200),
   fields: z.unknown(),
 });
 
+const skipTicketLimiter = (req: { user?: AuthUser }) =>
+  (process.env.AVADESK_TEST || "").trim() === "1" || Boolean(req.user && isStaff(req.user));
+
 const createLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
-  skip: (req) => Boolean(req.user && isStaff(req.user)),
+  skip: skipTicketLimiter,
   keyGenerator: (req) => String(req.user?.id ?? "anon"),
   validate: { xForwardedForHeader: false },
   standardHeaders: true,
@@ -522,7 +548,7 @@ const createLimiter = rateLimit({
 const attachLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
-  skip: (req) => Boolean(req.user && isStaff(req.user)),
+  skip: skipTicketLimiter,
   keyGenerator: (req) => String(req.user?.id ?? "anon"),
   validate: { xForwardedForHeader: false },
   standardHeaders: true,
@@ -533,7 +559,7 @@ const attachLimiter = rateLimit({
 const messageLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 30,
-  skip: (req) => Boolean(req.user && isStaff(req.user)),
+  skip: skipTicketLimiter,
   keyGenerator: (req) => String(req.user?.id ?? "anon"),
   validate: { xForwardedForHeader: false },
   standardHeaders: true,
@@ -590,7 +616,7 @@ v2TicketsRouter.get("/:id", requireAuth, async (req, res) => {
 v2TicketsRouter.post("/", requireAuth, createLimiter, async (req, res) => {
   const schema = z.object({
     projectId: z.string().uuid(),
-    type: z.enum(["bug", "implementation", "feature", "routine"]),
+    type: ticketTypeEnum,
     title: z.string().trim().min(1).max(200),
     fields: z.unknown(),
     origin: z.enum(["portal", "admin_report"]).optional(),
@@ -600,10 +626,14 @@ v2TicketsRouter.post("/", requireAuth, createLimiter, async (req, res) => {
   const fieldsParsed = parseFields(parsed.data.type, parsed.data.fields ?? {});
   if (!fieldsParsed.success) return sendError(res, 400, "VALIDATION", "Dados inválidos.");
   const user = req.user!;
+  if (!isStaff(user) && !clientMaySetTicketType(parsed.data.type)) {
+    return sendError(res, 403, "FORBIDDEN", "Sem permissão.");
+  }
   const origin = isStaff(user) ? (parsed.data.origin ?? "admin_report") : "portal";
   if (!isStaff(user) && parsed.data.origin === "admin_report") {
     return sendError(res, 400, "VALIDATION", "Dados inválidos.");
   }
+  const title = ticketTitleFromFields(parsed.data.type, parsed.data.title, fieldsParsed.data);
   try {
     const project = await getAccessibleProject(user, parsed.data.projectId);
     const row = await query<TicketRow>(
@@ -613,7 +643,7 @@ v2TicketsRouter.post("/", requireAuth, createLimiter, async (req, res) => {
       [
         parsed.data.projectId,
         parsed.data.type,
-        parsed.data.title,
+        title,
         JSON.stringify(fieldsParsed.data),
         origin,
         user.id,
@@ -627,7 +657,7 @@ v2TicketsRouter.post("/", requireAuth, createLimiter, async (req, res) => {
         projectId: parsed.data.projectId,
         clientId: project.client_id,
         ticketId: String(ticket.id),
-        title: parsed.data.title,
+        title,
         projectName: String(project.name ?? ""),
         excludeUserId: user.id,
       });
@@ -636,7 +666,7 @@ v2TicketsRouter.post("/", requireAuth, createLimiter, async (req, res) => {
         "opened_staff",
         {
           id: String(ticket.id),
-          title: parsed.data.title,
+          title,
           projectName: String(project.name ?? ""),
         },
         user.id
@@ -670,6 +700,9 @@ v2TicketsRouter.patch("/:id/content", requireAuth, createLimiter, async (req, re
     if (!isTicketAuthor(existing, user.id)) {
       return sendError(res, 403, "FORBIDDEN", "Sem permissão.");
     }
+    if (!isStaff(user) && !clientMaySetTicketType(parsed.data.type, String(existing.type))) {
+      return sendError(res, 403, "FORBIDDEN", "Sem permissão.");
+    }
     const eventsMap = await loadEvents([id.data]);
     const events = eventsMap.get(id.data) ?? [];
     if (!ticketContentEditable(String(existing.stage), events)) {
@@ -680,11 +713,12 @@ v2TicketsRouter.patch("/:id/content", requireAuth, createLimiter, async (req, re
         "Só é possível editar um chamado que ainda não foi iniciado."
       );
     }
+    const title = ticketTitleFromFields(parsed.data.type, parsed.data.title, fieldsParsed.data);
     await query(
       `UPDATE tickets
        SET type = $2, title = $3, fields = $4::jsonb, updated_at = NOW()
        WHERE id = $1`,
-      [id.data, parsed.data.type, parsed.data.title, JSON.stringify(fieldsParsed.data)]
+      [id.data, parsed.data.type, title, JSON.stringify(fieldsParsed.data)]
     );
     await writeAudit(user.id, "ticket_update", "ticket", id.data, parsed.data.type);
     const project = await getAccessibleProject(user, String(existing.project_id));

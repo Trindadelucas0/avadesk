@@ -90,6 +90,7 @@ function runTests(testUrl: string): Promise<number> {
       env: {
         ...process.env,
         DATABASE_URL: testUrl,
+        DATABASE_URL_TEST: testUrl,
         AVADESK_TEST: "1",
       },
     });

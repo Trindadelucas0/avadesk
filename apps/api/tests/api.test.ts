@@ -491,6 +491,58 @@ describe("V2 tickets", { skip: !postgresReady }, () => {
     assert.equal(res.status, 400);
   });
 
+  it("CLIENT creates other ticket with custom name", async () => {
+    const res = await request(app)
+      .post("/v2/tickets")
+      .set("Cookie", clientCookie)
+      .send({
+        projectId: projectAId,
+        type: "other",
+        title: "ignorado",
+        fields: { customName: "Relatório de estoque", what: "Preciso do relatório mensal." },
+      });
+    assert.equal(res.status, 201);
+    assert.equal(res.body.ticket.type, "other");
+    assert.equal(res.body.ticket.title, "Relatório de estoque");
+    assert.equal(res.body.ticket.fields.customName, "Relatório de estoque");
+    assert.equal(res.body.ticket.origin, "portal");
+  });
+
+  it("CLIENT cannot create feature ticket", async () => {
+    const res = await request(app)
+      .post("/v2/tickets")
+      .set("Cookie", clientCookie)
+      .send({
+        projectId: projectAId,
+        type: "feature",
+        title: "Exportar PDF",
+        fields: { whatUserDoes: "Exportar o relatório em PDF." },
+      });
+    assert.equal(res.status, 403);
+  });
+
+  it("CLIENT cannot change ticket type to feature", async () => {
+    const created = await request(app)
+      .post("/v2/tickets")
+      .set("Cookie", clientCookie)
+      .send({
+        projectId: projectAId,
+        type: "bug",
+        title: "Login trava",
+        fields: { problem: "Trava ao entrar.", where: "Login" },
+      });
+    assert.equal(created.status, 201);
+    const res = await request(app)
+      .patch(`/v2/tickets/${created.body.ticket.id}/content`)
+      .set("Cookie", clientCookie)
+      .send({
+        type: "feature",
+        title: "Exportar PDF",
+        fields: { whatUserDoes: "Exportar o relatório em PDF." },
+      });
+    assert.equal(res.status, 403);
+  });
+
   it("CLIENT B cannot read CLIENT A ticket", async () => {
     const created = await request(app)
       .post("/v2/tickets")
@@ -656,13 +708,15 @@ describe("V2 tickets", { skip: !postgresReady }, () => {
   it("CLIENT can reopen a resolved ticket with a note", async () => {
     const created = await request(app)
       .post("/v2/tickets")
-      .set("Cookie", clientCookie)
+      .set("Cookie", adminCookie)
       .send({
         projectId: projectAId,
         type: "routine",
         title: "Rotina mensal",
+        origin: "admin_report",
         fields: { routineName: "Fechamento", whatChanges: "Incluir totais." },
       });
+    assert.equal(created.status, 201);
     const id = created.body.ticket.id;
     await request(app).patch(`/v2/tickets/${id}`).set("Cookie", adminCookie).send({ stage: "production" });
     await request(app).patch(`/v2/tickets/${id}`).set("Cookie", adminCookie).send({ stage: "resolved" });

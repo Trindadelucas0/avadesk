@@ -2,8 +2,8 @@
 
 | Item | Valor |
 |------|--------|
-| Versão do sistema | 3.14.8 — Deploy VPS |
-| Última atualização | 11/09/2026 (VPS Hostinger: portas 3105/4105/5436; clone GitHub) |
+| Versão do sistema | 3.15.1 — Chamados |
+| Última atualização | 12/09/2026 (cliente abre só Bug e Outra coisa) |
 | Fonte oficial | Este arquivo |
 | Guia de uso | [docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md) |
 | PRD / wireframes | [docs/PRD-NEXUS-PORTAL-CLIENTE.md](docs/PRD-NEXUS-PORTAL-CLIENTE.md) |
@@ -32,6 +32,9 @@ Tutorial: **[docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md)**.
 
 | Versão | Nome | Mudança |
 |--------|------|---------|
+| 3.15.1 | Chamados | No portal, o cliente só abre **Bug** ou **Outra coisa** (nome 2–60 + detalhes; foto opcional). Staff continua com Implementação / Funcionalidade / Rotina. `POST`/`PATCH content`: CLIENT com outro tipo → 403. Tipo `other` no CHECK (`011_ticket_type_other.sql`). Tickets antigos permanecem. |
+| 3.15.0 | Aparência | Tema **claro** e **escuro**. Claro é o padrão no primeiro acesso; a escolha fica em `localStorage["avadesk-theme"]` (por dispositivo, fora do banco e da API). Interruptor no header e cards **Aparência** em `/client/settings` e `/admin/settings`. Anel, número e barras de evolução saem do azul `--accent` e passam a usar `--progress` (verde). Sem mudança de API, `progressPct`, etapas ou permissões. |
+| 3.14.9 | Perfil | `/admin/profile` e `/client/profile` abrem em leitura. **Editar** mostra o formulário; **Cancelar** descarta; **Salvar** usa as mesmas APIs (`PATCH /v2/auth/me`, `PATCH /v2/clients/:id`). Onboarding inalterado. |
 | 3.14.8 | Deploy VPS | Produção isolada em `127.0.0.1:3105` (web), `:4105` (API), `:5436` (Postgres). Clone [avadesk.git](https://github.com/Trindadelucas0/avadesk.git) em `/opt/avadesk`. Cloudflare aponta HTTP `127.0.0.1:3105`. Guia: [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md). API aceita `HOST` (VPS: `127.0.0.1`). Sem mudança de telas ou regras. |
 | 1.0.0 | Portal V1 | API + UI lean `/admin` `/portal` |
 | 2.0.x | Client Hub | UI `/client` `/admin`, hub_state JSON |
@@ -114,6 +117,7 @@ Seed: `npm run seed` **não apaga** clientes, usuários, projetos nem updates. S
 | Migration ficha cliente | `db/migrations/009_client_profile.sql` |
 | Clientes API | `apps/api/src/v2/rest.ts` (`GET/POST/PATCH /v2/clients`, `GET /v2/clients/cnpj/:cnpj`) |
 | Migration tickets | `db/migrations/004_tickets.sql` |
+| Migration tipo Outra coisa | `db/migrations/011_ticket_type_other.sql` |
 | Migration mensagens chamado | `db/migrations/008_ticket_messages.sql` |
 | Chamados API | `apps/api/src/v2/tickets.ts` |
 | Kanban chamados | `apps/web/src/components/hub/ticket-board.tsx` |
@@ -141,6 +145,9 @@ Seed: `npm run seed` **não apaga** clientes, usuários, projetos nem updates. S
 | Popup toque PWA | `apps/web/src/components/hub/push-notice-host.tsx`, `apps/web/public/sw.js` (`avadesk-shell-v5`) |
 | Dev web | `apps/web/package.json` → `next dev --port 3000` (sem Turbopack; porta extra falha em vez de 3001+) |
 | Migrate hub_state | `apps/api/src/scripts/migrate-hub-state.ts` |
+| Tokens dos temas | `apps/web/src/app/globals.css` (`:root` / `[data-theme="light"]` e `[data-theme="dark"]`) |
+| Runtime do tema | `apps/web/src/lib/theme.ts`, `apps/web/src/components/theme-provider.tsx` |
+| UI do tema | `apps/web/src/components/hub/theme-toggle.tsx` (header), `theme-picker.tsx` (Configurações) |
 
 ### Auth
 
@@ -152,7 +159,7 @@ Seed: `npm run seed` **não apaga** clientes, usuários, projetos nem updates. S
 | Reset | `/reset-password?token=` | `POST /v2/auth/reset` (token hash, one-shot, 1h). Mesmo casco + partículas |
 | Usuários | `/admin/users` | `app/admin/users/page.tsx` — lista todos os papéis; `GET /v2/users` hidrata `projectIds`; criar em `CenterNotice` |
 | Ficha do usuário | `/admin/users/:id` | `app/admin/users/[id]/page.tsx` — `GET/PATCH /v2/users/:id` + `POST /v2/users/:id/password` |
-| Perfil (header) | `/client/profile` · `/admin/profile` | `apps/web/src/components/hub/app-shell.tsx` → `OwnProfileCard`; `PATCH /v2/auth/me` |
+| Perfil (header) | `/client/profile` · `/admin/profile` | Leitura default; Editar → `OwnProfileCard` / ficha; `PATCH /v2/auth/me` |
 | Clientes | `/admin/clients` | `app/admin/clients/page.tsx` + `[id]/page.tsx` — ficha em `clients` |
 
 ### Client / Admin
@@ -163,7 +170,7 @@ Rotas UI permanecem `/client/*` e `/admin/*`. Home admin: **Visão geral** (`/ad
 
 ### 6.1 Login
 
-E-mail + senha → BFF grava cookie HttpOnly em :3000 → diálogo no **centro** da tela (`Olá, {primeiro nome}`) com **Fechar** (pode fechar sozinho em ~3s só neste fluxo) → depois `/admin`, `/client` ou onboarding. Erro de validação fica inline no formulário. Rate limit no login. Cartão: ícone + **Acesse sua conta**, campos com ícone interno, CTA **Entrar →**; marca **Avadesk** no rodapé do card (`apps/web/src/components/hub/auth-shell.tsx`). Fundo decorativo: canvas de partículas conectadas (accent `#6b8cff`); `pointer-events: none`; pausa com aba oculta; estático se `prefers-reduced-motion` (`connected-particles.tsx`). O mesmo casco e o canvas valem em `/forgot-password`, `/reset-password`, `/invite` e `/client/onboarding` (**Complete seu cadastro**). Telas autenticadas (sidebar, `PageHeader` com ícone, cards `hub-surface`, tabelas, KPIs, modais `hub-dialog`, kanban) usam os mesmos tokens de borda/glow; **não muda regras**.
+E-mail + senha → BFF grava cookie HttpOnly em :3000 → diálogo no **centro** da tela (`Olá, {primeiro nome}`) com **Fechar** (pode fechar sozinho em ~3s só neste fluxo) → depois `/admin`, `/client` ou onboarding. Erro de validação fica inline no formulário. Rate limit no login. Cartão: ícone + **Acesse sua conta**, campos com ícone interno, CTA **Entrar →**; marca **Avadesk** no rodapé do card (`apps/web/src/components/hub/auth-shell.tsx`). Fundo decorativo: canvas de partículas conectadas (cor do token `--particles-rgb`, acompanha o tema ativo); `pointer-events: none`; pausa com aba oculta; estático se `prefers-reduced-motion` (`connected-particles.tsx`). O mesmo casco e o canvas valem em `/forgot-password`, `/reset-password`, `/invite` e `/client/onboarding` (**Complete seu cadastro**). Telas autenticadas (sidebar, `PageHeader` com ícone, cards `hub-surface`, tabelas, KPIs, modais `hub-dialog`, kanban) usam os mesmos tokens de borda/glow; **não muda regras**.
 
 ### 6.1.1 Usuários (admin)
 
@@ -202,7 +209,7 @@ Currently building: campos explícitos do projeto, senão último update visíve
 | Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
 | Header | Título | 1 projeto = nome; N = empresa ou “Seus sistemas” | Sim | Sistema | `clientProjects` / `client.company` | — | Identifica o tenant na home | Sem projetos → empty state | `apps/web/src/app/client/page.tsx` |
-| Card do sistema | Anel Progresso | `%` circular `progressPct` | Sim | Admin no projeto | `Project.progressPct` | `/client/projects/:id` | Um anel por sistema | Disclaimer se não houver `summary` | `apps/web/src/components/hub/progress.tsx` |
+| Card do sistema | Anel Progresso | `%` circular `progressPct` | Sim | Admin no projeto | `Project.progressPct` | `/client/projects/:id` | Um anel por sistema; anel, número e barras usam `--progress` (verde), não o accent azul | Disclaimer se não houver `summary` | `apps/web/src/components/hub/progress.tsx` |
 | Card do sistema | Agora / Próximo | Narrativa daquele projeto | Não | Admin | `currentlyBuilding` / `nextSteps` | Detalhe do projeto | 1 sistema: sempre visível. 2+: no expandir do card; um aberto por vez | Textos vazios se não houver dados | `apps/web/src/app/client/page.tsx` (`SystemProgressCard`) |
 | Antes | Timeline | Updates visíveis de todos os sistemas | Não | Admin (visível ao cliente) | `visibleUpdates` | `/client/updates` e `/client/projects/:id` | Agregada; clique no card abre o modal de detalhe (sem visibilidade interna) | Primeiro acesso: espera, não “0” | `apps/web/src/app/client/page.tsx` |
 
@@ -274,14 +281,15 @@ Categorias antigas (`contrato` → `contrato_documentacao`; `briefing` / `design
 
 ### 6.7 Chamados
 
-Lista em `/client/chamados`. Admin em `/admin/chamados` usa **Kanban** (colunas Correção / Produção / Aguardando cliente). Encerrados **não** entram na lista/quadro: ficam no painel **Concluídos** (De / Até = data em que o cliente confirmou), abaixo do quadro, com borda verde. Visual do quadro: borda/glow e título coloridos por etapa (azul / roxo / âmbar). Filtros Projeto/Tipo/Pendência ficam na mesma faixa do CTA **Abrir chamado**. CTA no projeto do cliente (`/client/projects/[id]`). Card compacto no quadro; clique no cabeçalho expande o contexto (um aberto por vez). Tasks internas saíram da UI; `/admin/tasks` redireciona para chamados.
+Lista em `/client/chamados`. O cliente só escolhe **Bug** ou **Outra coisa** (ícones no formulário). Staff em `/admin/chamados` usa **Kanban** (colunas Correção / Produção / Aguardando cliente) e ainda abre Implementação, Funcionalidade nova e Rotina, além dos dois tipos do portal. Encerrados **não** entram na lista/quadro: ficam no painel **Concluídos** (De / Até = data em que o cliente confirmou), abaixo do quadro, com borda verde. Visual do quadro: borda/glow e título coloridos por etapa (azul / roxo / âmbar). Filtros Projeto/Tipo/Pendência ficam na mesma faixa do CTA **Abrir chamado**. CTA no projeto do cliente (`/client/projects/[id]`). Card compacto no quadro; clique no cabeçalho expande o contexto (um aberto por vez). Tasks internas saíram da UI; `/admin/tasks` redireciona para chamados.
 
 | Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
-| Novo chamado | Tipo | Bug, Implementação, Funcionalidade nova, Rotina | Sim | Cliente ou admin | select | `tickets.type` | Troca os campos do formulário | API rejeita `fields` de outro tipo | `apps/web/src/components/hub/ticket-form.tsx` |
-| Novo chamado | Título | Nome do card | Sim | Quem abre | input | `tickets.title` | Aparece no card compacto | 1–200 chars | `apps/api/src/v2/tickets.ts` |
+| Novo chamado | Tipo | Cliente: Bug ou Outra coisa. Staff: também Implementação, Funcionalidade nova, Rotina | Sim | Cliente ou admin | select | `tickets.type` | Troca os campos do formulário | CLIENT POST/PATCH `implementation`/`feature`/`routine` → 403 (exceto PATCH que mantém o tipo legado). API rejeita `fields` de outro tipo | `apps/web/src/components/hub/ticket-form.tsx` |
+| Novo chamado | Título | Nome do card | Sim (Bug e tipos do staff) | Quem abre | input | `tickets.title` | Aparece no card compacto | 1–200 chars. Em Outra coisa o título **é** o nome (`fields.customName`) | `apps/api/src/v2/tickets.ts` |
 | Bug | O que está acontecendo / Onde | Relato | Sim | Quem abre | form | `tickets.fields` JSONB | Só no expandido | `problem` + `where` | idem |
-| Implementação | O que / Por quê | Pedido | Sim | Quem abre | form | `fields.what` `fields.why` | Expandido | Sem prazo desejado | idem |
+| Outra coisa | Como você chama isso? / O que você precisa? | Pedido livre | Sim | Quem abre | form | `fields.customName` `fields.what` | Nome vira título do card | Nome 2–60; detalhe 1–4000 | idem |
+| Implementação | O que / Por quê | Pedido | Sim | Staff | form | `fields.what` `fields.why` | Expandido | Sem prazo desejado; CLIENT 403 | idem |
 | Novo chamado | Imagens | Prints opcionais | Não | Quem abre | file | `ticket_attachments` | Até 4 PNG/JPG/WebP, 2 MB; thumbs no card | SVG/PDF 400; outro tenant 404 | `POST /v2/tickets/:id/attachments` |
 | Feature | O que o usuário passa a fazer | Pedido | Sim | Quem abre | form | `fields.whatUserDoes` | Expandido | — | idem |
 | Rotina | Qual rotina / O que muda | Pedido | Sim | Quem abre | form | `fields.routineName` `fields.whatChanges` | Expandido | — | idem |
@@ -307,14 +315,14 @@ Endpoints: `GET/POST /v2/tickets`, `GET/PATCH /v2/tickets/:id`, `PATCH /v2/ticke
 
 ### 6.8 Perfil (header)
 
-O círculo com iniciais e o nome no header são um único link (`aria-label="Perfil"`). CLIENT vai a `/client/profile`; ADMIN/MANAGER a `/admin/profile`. O botão Sair fica fora do link. Sem ID na URL: o PATCH usa a sessão (`req.user.id`).
+O círculo com iniciais e o nome no header são um único link (`aria-label="Perfil"`). CLIENT vai a `/client/profile`; ADMIN/MANAGER a `/admin/profile`. O botão Sair fica fora do link. Sem ID na URL: o PATCH usa a sessão (`req.user.id`). As telas de perfil próprio abrem em **leitura**. **Editar** mostra o formulário; **Cancelar** restaura o rascunho; **Salvar** chama a API. Conta e ficha da empresa têm Editar independentes. Onboarding (`/client/onboarding`) continua formulário de primeiro acesso.
 
 | Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
 | Header | Avatar + nome | Atalho para o próprio perfil | — | Sessão | `session.avatarInitials` | `/client/profile` ou `/admin/profile` | Clique / Enter navega | Sair não faz parte do link | `apps/web/src/components/hub/app-shell.tsx` |
-| Perfil | Nome de exibição | Nome na sessão e nas iniciais | Sim (3–120) | Usuário logado | `PATCH /v2/auth/me` | `users.name` + `avatar_initials` | Recalcula iniciais no servidor | Só a própria conta; sem ID na URL | `apps/api/src/v2/auth.ts` |
+| Perfil | Nome de exibição | Nome na sessão e nas iniciais | Sim (3–120) | Usuário logado | `PATCH /v2/auth/me` | `users.name` + `avatar_initials` | Leitura default; Editar → input; Cancelar descarta; Recalcula iniciais no servidor | Só a própria conta; sem ID na URL; input só no modo edição | `apps/web/src/components/hub/own-profile-card.tsx` |
 | Perfil cliente | Instagram | Leitura | Não | Onboarding | `users` | — | Só se preenchido | Não altera login | `apps/web/src/app/client/profile/page.tsx` |
-| Perfil cliente | Dados da empresa | Ficha compartilhada do tenant | Nome, e-mail, telefone, WhatsApp sim; resto não | Cliente logado | `PATCH /v2/clients/:id` | `clients` | Mesmos campos do admin; e-mail de contato ≠ e-mail de login | Só `id = session.client_id`; outro tenant 404; CLIENT não POST | `apps/web/src/components/hub/client-data-fields.tsx` |
+| Perfil cliente | Dados da empresa | Ficha compartilhada do tenant | Nome, e-mail, telefone, WhatsApp sim; resto não | Cliente logado | `PATCH /v2/clients/:id` | `clients` | Leitura default (`—` se vazio); aviso se faltar obrigatório; Editar abre `ClientDataFields`; e-mail de contato ≠ e-mail de login | Só `id = session.client_id`; outro tenant 404; CLIENT não POST | `apps/web/src/app/client/profile/page.tsx` |
 
 ### 6.8.1 Clientes (admin)
 
@@ -344,6 +352,22 @@ Toque no alerta do sistema/PWA: o service worker abre o `href` relativo e o `Pus
 | Destino | href | Tela aberta atrás do popup | Sim (default `/client`) | Admin ou sistema | `notifications.href` | rota interna | SW sanitiza; API rejeita externo | Open redirect → `/` ou `/admin`/`/client` | `apps/api/src/lib/push-href.ts` |
 | Lista | Item | Aviso persistido | — | Destinatário | bootstrap | `Link` `item.href` | Marca lida no clique | Sem overlay | `apps/web/src/components/hub/cards.tsx` |
 
+### 6.10 Aparência (tema claro / escuro)
+
+Dois temas: **Claro** (padrão) e **Escuro** (a paleta antiga do hub). A escolha é **preferência local do dispositivo**: `localStorage["avadesk-theme"]` com `"light"` ou `"dark"`. Valor ausente ou inválido cai em `light`. **Não** existe endpoint, coluna ou campo de bootstrap para tema; nada disso entra em `notificationPrefs` nem em `users`.
+
+As cores vivem em tokens CSS: `:root` / `[data-theme="light"]` e `[data-theme="dark"]` em `globals.css`. Componentes continuam lendo `var(--bg-elevated)`, `var(--text-primary)`, `var(--accent)`, etc., então trocar o tema não exige mudança de tela. Superfícies antes fixas em hex escuro (`hub-surface`, `hub-dialog`, `hub-control`, `auth-card`, `auth-field`, kanban, cards de chamado, empty state, skeleton) usam tokens compostos (`--surface-bg`, `--surface-shadow`, `--control-bg`, `--empty-bg`, `--shimmer`, `--ticket-bg`).
+
+Um script inline no documento aplica `data-theme` **antes do primeiro paint** (`THEME_INIT_SCRIPT`), então não há flash do tema errado no F5. Esse mesmo valor controla `color-scheme`, a `meta[name="theme-color"]` e o tema do Sonner. Trocar o tema em outra aba sincroniza esta (evento `storage`). Login, forgot, reset, invite e onboarding herdam o tema do documento; o interruptor aparece só no header autenticado e nas Configurações.
+
+O accent azul continua sendo marca/ação (CTA, foco, item ativo do menu, selo do sino). **Evolução** (anel, número e barras) usa `--progress`: `#0f7a5a` no claro e `#3ddc97` no escuro.
+
+| Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
+|-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
+| Header | Sol / Lua | Alterna claro ↔ escuro | Não | Usuário logado | `localStorage["avadesk-theme"]` | `html[data-theme]` | Um clique troca e grava; `aria-label` diz o destino | Só troca aparência; nenhuma chamada de API | `apps/web/src/components/hub/theme-toggle.tsx` |
+| Configurações | Aparência | Cards **Claro (padrão)** / **Escuro** com miniatura | Não | Usuário logado | mesma chave | `html[data-theme]` | `aria-pressed` no selecionado; miniatura mostra a própria paleta | Vale só neste dispositivo/navegador | `apps/web/src/components/hub/theme-picker.tsx` |
+| Documento | `data-theme` | Tema ativo | Sim (default `light`) | Script inline | `localStorage` | tokens do `globals.css` | Roda antes do paint; `classList` `dark` acompanha o Tailwind | Só `"light"` ou `"dark"`; storage bloqueado → tema da sessão | `apps/web/src/lib/theme.ts` |
+
 ## 7. Regras de negócio
 
 1. CLIENT nunca vê `visible_to_client=false`.
@@ -354,7 +378,7 @@ Toque no alerta do sistema/PWA: o service worker abre o `href` relativo e o `Pus
 6. CLIENT nunca recebe `access_password` em listagens.
 7. Login: bcrypt em `users.password_hash`. Credenciais de sistema **e** cofre `.env`: AES-256-GCM (`CREDENTIALS_KEY`).
 8. CLIENT não confirma chamado de outro projeto/tenant (404). Só CLIENT confirma; admin não fecha como `closed`.
-9. Chamado: `stage` anda só um passo (fix ↔ production ↔ resolved). `closed` só via confirm. Reabrir só de `resolved` → `fix`. Conteúdo (`type`/`title`/`fields`) só o autor edita, e só com `stage=fix` sem evento de transição (`from_stage` nulo). Não muda projeto, origem nem etapa nesse PATCH.
+9. Chamado: `stage` anda só um passo (fix ↔ production ↔ resolved). `closed` só via confirm. Reabrir só de `resolved` → `fix`. Conteúdo (`type`/`title`/`fields`) só o autor edita, e só com `stage=fix` sem evento de transição (`from_stage` nulo). Não muda projeto, origem nem etapa nesse PATCH. CLIENT só **cria** `bug` ou `other`; outro tipo no POST → 403. No PATCH content, CLIENT não troca para `implementation`/`feature`/`routine` (pode manter o tipo se o chamado já era legado).
 10. Esqueci senha: mesma resposta se o e-mail existir ou não. HTML escapado. Token 1h no servidor (`expires_at > NOW()`); pedido novo invalida tokens anteriores não usados. Boas-vindas **sem senha** no e-mail. Push: `user_id` só da sessão; VAPID private só no backend.
 11. Usuário: `admin`/`manager` exigem `client_id` nulo; `client` exige empresa. `GET/PATCH /v2/users/:id` e `POST /v2/users/:id/password` só para staff; CLIENT 403. PATCH persiste e-mail único. Promover cliente a staff zera a empresa. Rebaixar staff a cliente sem `clientId` → 400. Senha definida pelo admin não vai no e-mail; sessão HMAC antiga não é revogada até expirar ou logout; `active=false` bloqueia o próximo request.
 12. Live: `GET /v2/events` exige sessão. O evento só tem `{ type, reason }` (sem PII). CLIENT só recebe se o `client_id` da sessão for o do recurso; staff recebe todos; o ator da mutação não recebe. Poll 30s cobre SSE caído. Sem Redis: um processo Node.
@@ -392,12 +416,16 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - [ ] Arquivos: cards de projeto → pasta (Documentação / custom / Outros) → lista com data; Docs redireciona para Arquivos; cliente não vê projeto de outro tenant
 - [ ] `npm test` usa `nexus_test`; recusa se a URL de teste for o banco da UI (`nexus`)
 - [ ] `npm run seed` não apaga clientes/projetos; F5 após criar usuário ainda mostra o registro
-- [ ] Chamados: cliente abre bug; admin avança etapas; cliente confirma; outro tenant 404
+- [ ] Chamados: cliente abre bug ou Outra coisa; admin avança etapas; cliente confirma; outro tenant 404; CLIENT POST `feature` 403
 - [ ] Chamados: fila sem encerrados; Concluídos com De/Até lista só o período; `stage=closed` sem datas 400; CLIENT B não vê o arquivo de A
 - [ ] Chamado: abrir sem imagem; anexar PNG; SVG/PDF 400; outro tenant 404 no download; Implementação sem Prazo desejado
 - [ ] Chamado intacto: autor (cliente ou admin) vê **Editar** e grava; outro usuário 403; após Produção ou Reabrir some o botão (API 409)
 - [ ] Chamado `resolved` (cliente): Confirmar `accent`/`lg`; Ainda não está ok `danger`/`lg`; form com subtítulo vermelho; Reabrir disabled sem nota
 - [ ] Card compacto expande no clique; um aberto por vez
+- [ ] Aba nova sem `localStorage`: hub abre **claro**, sem flash escuro; F5 mantém o tema escolhido
+- [ ] Sol/Lua no header e cards de Aparência (`/client/settings` e `/admin/settings`) mudam o mesmo valor; toast e `meta[name="theme-color"]` acompanham
+- [ ] `/client`: anel, `%` e barras em verde; **+ Update**, item ativo do menu e selo do sino seguem azuis
+- [ ] `/login`, `/forgot-password` e `/invite` legíveis nos dois temas (card, campos e partículas)
 - [ ] `npm run typecheck -w @nexus/web` e build
 - [ ] Home `/client`: 1 projeto = anel + Agora/Próximo visíveis; 2+ = anéis compactos, Agora/Próximo no clique (um aberto); Antes único
 - [ ] Forgot: mensagem genérica; e-mail Avadesk se usuário ativo; reset one-shot; token com `expires_at` no passado 400; segundo forgot invalida o anterior; `/reset-password` sem token mostra **Link inválido ou expirado**
@@ -413,9 +441,9 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - [ ] Ambientes: só ADMIN; MANAGER/CLIENT 403 em `/v2/projects/:id/env`; GET sem conteúdo; Copiar após reveal
 - [ ] Atividade recente: até 40 itens com scroll; clique abre modal; empty inalterado; cliente não vê chip “Só a equipe”
 - [ ] Header: clique na inicial (e no nome) abre o perfil; Sair só faz logout
-- [ ] `/admin/profile` e `/client/profile`: salvar nome via `PATCH /v2/auth/me` (3–120 chars); sem ID na URL
+- [ ] `/admin/profile` e `/client/profile`: chegam em leitura (sem input); Editar → Salvar nome via `PATCH /v2/auth/me` (3–120 chars); Cancelar não chama API; sem ID na URL
 - [ ] Novo cliente: sem e-mail/telefone/WhatsApp não salva; CNPJ 14 dígitos opcional; detalhe edita a ficha
-- [ ] `/client/profile`: cliente completa a ficha da empresa; CLIENT B PATCH empresa A → 404; CLIENT não POST `/v2/clients`
+- [ ] `/client/profile`: ficha da empresa em leitura; Editar para completar; CLIENT B PATCH empresa A → 404; CLIENT não POST `/v2/clients`
 - [ ] Admin marca chamado Resolvido → aba `/client/chamados` aberta atualiza sem F5; outro tenant não muda
 - [ ] `GET /v2/events` sem cookie = 401; PATCH resolved grava `email_outbox` no e-mail de login do CLIENT
 - [ ] Toque no alerta PWA abre o href + `CenterNotice`; lista `/client/notifications` só navega

@@ -23,7 +23,7 @@ export default function ClientChamadosPage() {
       <PageHeader
         icon={Headphones}
         title="Chamados"
-        description="Bugs, implementações, funcionalidades e rotinas. Toque no card para ver o contexto. Encerrados ficam em Concluídos, por data."
+        description="Bugs e outras solicitações. Toque no card para ver o contexto. Encerrados ficam em Concluídos, por data."
       />
       {projects.length === 0 ? (
         <EmptyState

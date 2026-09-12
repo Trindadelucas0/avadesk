@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/hub/theme-toggle";
 import { useHubStore } from "@/stores/hub-store";
 import type { LucideIcon } from "lucide-react";
 
@@ -106,7 +107,7 @@ export function AppShell({
       >
         <div className="flex h-14 items-center gap-2 border-b border-[var(--border)] px-3">
           <Link href={homeHref} className="flex min-w-0 items-center gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[linear-gradient(145deg,#8aa4ff_0%,#4d6ef5_100%)] text-sm font-semibold text-white shadow-[0_6px_14px_rgba(107,140,255,0.35)]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[image:var(--brand-gradient)] text-sm font-semibold text-white shadow-[0_6px_14px_rgba(107,140,255,0.35)]">
               ◈
             </span>
             {!collapsed ? (
@@ -126,7 +127,7 @@ export function AppShell({
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-colors duration-fast hub-focus",
                   active
-                    ? "bg-[var(--accent-muted)] text-[var(--accent)] shadow-[inset_0_0_0_1px_rgba(107,140,255,0.28)]"
+                    ? "bg-[var(--accent-muted)] text-[var(--accent)] shadow-[inset_0_0_0_1px_var(--accent-ring)]"
                     : "text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]"
                 )}
               >
@@ -183,7 +184,7 @@ export function AppShell({
       >
         <div className="flex h-14 items-center justify-between gap-2 border-b border-[var(--border)] px-3">
           <Link href={homeHref} className="flex min-w-0 items-center gap-2" onClick={() => setMobileOpen(false)}>
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[linear-gradient(145deg,#8aa4ff_0%,#4d6ef5_100%)] text-sm font-semibold text-white shadow-[0_6px_14px_rgba(107,140,255,0.35)]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[image:var(--brand-gradient)] text-sm font-semibold text-white shadow-[0_6px_14px_rgba(107,140,255,0.35)]">
               ◈
             </span>
             <span className="truncate text-sm font-semibold tracking-tight">{brand}</span>
@@ -212,7 +213,7 @@ export function AppShell({
                 className={cn(
                   "flex min-h-11 items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-colors duration-fast hub-focus",
                   active
-                    ? "bg-[var(--accent-muted)] text-[var(--accent)] shadow-[inset_0_0_0_1px_rgba(107,140,255,0.28)]"
+                    ? "bg-[var(--accent-muted)] text-[var(--accent)] shadow-[inset_0_0_0_1px_var(--accent-ring)]"
                     : "text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]"
                 )}
               >
@@ -267,7 +268,7 @@ export function AppShell({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="hidden h-9 gap-2 rounded-xl border-[var(--border-strong)] bg-[#0a0d14] px-3 text-[var(--text-muted)] shadow-[0_0_16px_rgba(107,140,255,0.08)] sm:inline-flex"
+                  className="hidden h-9 gap-2 rounded-xl border-[var(--border-strong)] bg-[var(--control-bg)] px-3 text-[var(--text-muted)] sm:inline-flex"
                   onClick={onCommandOpen}
                 >
                   <Search className="h-3.5 w-3.5" />
@@ -281,6 +282,7 @@ export function AppShell({
                 + Update
               </Button>
             ) : null}
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="icon"
@@ -304,7 +306,7 @@ export function AppShell({
                 aria-label="Perfil"
                 className="flex min-w-0 items-center gap-2 rounded-md py-0.5 pr-1 hub-focus hover:bg-[var(--bg-subtle)]"
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(145deg,#8aa4ff_0%,#4d6ef5_100%)] text-xs font-medium text-white shadow-[0_6px_14px_rgba(107,140,255,0.35)]">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[image:var(--brand-gradient)] text-xs font-medium text-white shadow-[0_6px_14px_rgba(107,140,255,0.35)]">
                   {session?.avatarInitials ?? "?"}
                 </span>
                 <span className="hidden min-w-0 sm:block">

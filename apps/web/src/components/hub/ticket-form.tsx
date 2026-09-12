@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Bug, MoreHorizontal, RefreshCw, Sparkles, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,14 @@ function fieldsFromTicket(ticket: Ticket): Record<string, string> {
 
 type PendingImage = { file: File; preview: string };
 
+const TYPE_ICONS = {
+  bug: Bug,
+  implementation: Wrench,
+  feature: Sparkles,
+  routine: RefreshCw,
+  other: MoreHorizontal,
+} as const;
+
 async function fileToBase64(file: File): Promise<string> {
   const buf = await file.arrayBuffer();
   const bytes = new Uint8Array(buf);
@@ -47,6 +55,7 @@ export function TicketForm({
   ticket,
   onCancel,
   onSaved,
+  allowedTypes,
 }: {
   projects?: { id: string; name: string }[];
   defaultProjectId?: string;
@@ -55,6 +64,7 @@ export function TicketForm({
   ticket?: Ticket;
   onCancel?: () => void;
   onSaved?: () => void;
+  allowedTypes?: TicketType[];
 }) {
   const createTicket = useHubStore((s) => s.createTicket);
   const updateTicket = useHubStore((s) => s.updateTicket);
@@ -80,6 +90,11 @@ export function TicketForm({
   }, []);
 
   const defs = useMemo(() => ticketFieldDefs(type), [type]);
+  const typeOptions = useMemo(() => {
+    const allowed = new Set(allowedTypes ?? TICKET_TYPES.map((t) => t.value));
+    if (ticket) allowed.add(ticket.type);
+    return TICKET_TYPES.filter((t) => allowed.has(t.value));
+  }, [allowedTypes, ticket]);
 
   const onTypeChange = (next: TicketType) => {
     setType(next);
@@ -131,8 +146,13 @@ export function TicketForm({
       return;
     }
     for (const def of defs) {
-      if (def.required && !fields[def.key]?.trim()) {
+      const value = fields[def.key]?.trim() ?? "";
+      if (def.required && !value) {
         toast.error(`Preencha: ${def.label}`);
+        return;
+      }
+      if (def.minLength && value.length < def.minLength) {
+        toast.error(`${def.label}: mínimo ${def.minLength} caracteres.`);
         return;
       }
     }
@@ -157,13 +177,14 @@ export function TicketForm({
         return;
       }
     }
+    const resolvedTitle = type === "other" ? (payload.customName ?? "").trim() : title.trim();
     const res =
       editing && ticket
-        ? await updateTicket(ticket.id, { type, title: title.trim(), fields: payload })
+        ? await updateTicket(ticket.id, { type, title: resolvedTitle, fields: payload })
         : await createTicket({
             projectId,
             type,
-            title: title.trim(),
+            title: resolvedTitle,
             fields: payload,
             origin: showOrigin ? origin : "portal",
             images: imagePayload,
@@ -213,21 +234,29 @@ export function TicketForm({
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-[var(--text-secondary)]">Tipo</legend>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {TICKET_TYPES.map((t) => (
-            <label
-              key={t.value}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-[var(--border-strong)] px-3 py-2 text-sm has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[var(--accent-muted)]"
-            >
-              <input
-                type="radio"
-                name={`${idPrefix}-type`}
-                value={t.value}
-                checked={type === t.value}
-                onChange={() => onTypeChange(t.value)}
-              />
-              {t.label}
-            </label>
-          ))}
+          {typeOptions.map((t) => {
+            const Icon = TYPE_ICONS[t.value];
+            return (
+              <label
+                key={t.value}
+                className="flex min-h-11 cursor-pointer items-start gap-2 rounded-xl border border-[var(--border-strong)] px-3 py-2 text-sm has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[var(--accent-muted)]"
+              >
+                <input
+                  type="radio"
+                  className="mt-1"
+                  name={`${idPrefix}-type`}
+                  value={t.value}
+                  checked={type === t.value}
+                  onChange={() => onTypeChange(t.value)}
+                />
+                <Icon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-secondary)]" aria-hidden />
+                <span className="min-w-0">
+                  <span className="block font-medium">{t.label}</span>
+                  <span className="mt-0.5 block text-xs text-[var(--text-muted)]">{t.hint}</span>
+                </span>
+              </label>
+            );
+          })}
         </div>
       </fieldset>
 
@@ -257,6 +286,7 @@ export function TicketForm({
         </fieldset>
       ) : null}
 
+      {type !== "other" ? (
       <div>
         <Label htmlFor={`${idPrefix}-title`}>Título</Label>
         <Input
@@ -268,6 +298,7 @@ export function TicketForm({
           required
         />
       </div>
+      ) : null}
 
       {defs.map((def) => (
         <div key={def.key}>
@@ -282,7 +313,8 @@ export function TicketForm({
               value={fields[def.key] ?? ""}
               onChange={(e) => setFields((prev) => ({ ...prev, [def.key]: e.target.value }))}
               required={def.required}
-              maxLength={4000}
+              maxLength={def.maxLength ?? 4000}
+              placeholder={def.placeholder}
             />
           ) : (
             <Input
@@ -291,7 +323,9 @@ export function TicketForm({
               value={fields[def.key] ?? ""}
               onChange={(e) => setFields((prev) => ({ ...prev, [def.key]: e.target.value }))}
               required={def.required}
-              maxLength={200}
+              minLength={def.minLength}
+              maxLength={def.maxLength ?? 200}
+              placeholder={def.placeholder}
             />
           )}
         </div>

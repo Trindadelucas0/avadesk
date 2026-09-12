@@ -9,7 +9,7 @@ import { Modal } from "@/components/hub/modal";
 import { TicketCard } from "@/components/hub/ticket-card";
 import { TicketForm } from "@/components/hub/ticket-form";
 import { useHubStore } from "@/stores/hub-store";
-import { canMoveTicketStage, isTicketOpen } from "@/lib/tickets";
+import { canMoveTicketStage, CLIENT_TICKET_TYPE_VALUES, isTicketOpen } from "@/lib/tickets";
 import { cn } from "@/lib/utils";
 import type { Ticket, TicketStage } from "@/types";
 
@@ -238,6 +238,7 @@ export function TicketBoard({
           projects={projects}
           defaultProjectId={defaultProjectId}
           showOrigin={mode === "admin"}
+          allowedTypes={mode === "client" ? CLIENT_TICKET_TYPE_VALUES : undefined}
           onCreated={() => setFormOpen(false)}
         />
       </Modal>

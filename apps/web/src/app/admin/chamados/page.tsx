@@ -6,7 +6,7 @@ import { Headphones } from "lucide-react";
 import { EmptyState, PageHeader, PageSkeleton, TicketBoard, ClosedTicketsPanel } from "@/components/hub";
 import { useHubStore } from "@/stores/hub-store";
 import { parseTicketStageParam, parseTicketTypeParam } from "@/lib/admin-overview";
-import { isTicketOpen, ticketTypeLabel } from "@/lib/tickets";
+import { isTicketOpen, TICKET_TYPES, ticketTypeLabel } from "@/lib/tickets";
 import type { TicketType } from "@/types";
 
 function AdminChamadosInner() {
@@ -103,10 +103,11 @@ function AdminChamadosInner() {
                     onChange={(e) => setType(e.target.value as TicketType | "ALL")}
                   >
                     <option value="ALL">Todos</option>
-                    <option value="bug">{ticketTypeLabel("bug")}</option>
-                    <option value="implementation">{ticketTypeLabel("implementation")}</option>
-                    <option value="feature">{ticketTypeLabel("feature")}</option>
-                    <option value="routine">{ticketTypeLabel("routine")}</option>
+                    {TICKET_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>

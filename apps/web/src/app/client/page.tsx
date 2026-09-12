@@ -171,7 +171,7 @@ export default function ClientDashboardPage() {
       <header className="flex items-start gap-3">
         <div
           className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-white shadow-[0_8px_18px_rgba(107,140,255,0.35)]"
-          style={{ background: "linear-gradient(145deg, #8aa4ff 0%, #4d6ef5 100%)" }}
+          style={{ background: "var(--brand-gradient)" }}
           aria-hidden
         >
           <Home className="h-5 w-5" strokeWidth={2.2} />

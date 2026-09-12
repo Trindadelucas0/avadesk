@@ -279,7 +279,7 @@ export function deriveOverviewFromStore(input: {
 }
 
 export const TICKET_STAGE_QUERY = ["fix", "production", "resolved", "closed"] as const;
-export const TICKET_TYPE_QUERY = ["bug", "implementation", "feature", "routine"] as const;
+export const TICKET_TYPE_QUERY = ["bug", "implementation", "feature", "routine", "other"] as const;
 
 export function parseTicketStageParam(value: string | null): TicketStage | null {
   if (!value) return null;

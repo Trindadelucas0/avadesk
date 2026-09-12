@@ -140,7 +140,7 @@ export interface Task {
   updatedAt: string;
 }
 
-export type TicketType = "bug" | "implementation" | "feature" | "routine";
+export type TicketType = "bug" | "implementation" | "feature" | "routine" | "other";
 export type TicketStage = "fix" | "production" | "resolved" | "closed";
 export type TicketOrigin = "portal" | "admin_report";
 

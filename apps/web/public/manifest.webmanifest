@@ -4,8 +4,8 @@
   "description": "Avadesk — acompanhe a evolução do seu software",
   "start_url": "/login",
   "display": "standalone",
-  "background_color": "#07090d",
-  "theme_color": "#07090d",
+  "background_color": "#f5f7fa",
+  "theme_color": "#f5f7fa",
   "orientation": "portrait-primary",
   "icons": [
     {

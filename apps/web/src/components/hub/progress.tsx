@@ -15,7 +15,7 @@ export function ProgressBar({
   return (
     <div
       className={cn(
-        "w-full overflow-hidden rounded-full bg-[var(--bg-subtle)]",
+        "w-full overflow-hidden rounded-full bg-[var(--progress-track)]",
         size === "sm" ? "h-1.5" : "h-2",
         className
       )}
@@ -25,7 +25,7 @@ export function ProgressBar({
       aria-valuemax={100}
     >
       <div
-        className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-slow"
+        className="h-full rounded-full bg-[var(--progress)] transition-[width] duration-slow"
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -50,13 +50,13 @@ export function ProjectProgress({
     <div className={cn("flex items-center gap-4", className)}>
       <div className="relative h-[104px] w-[104px] shrink-0">
         <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100" aria-hidden>
-          <circle cx="50" cy="50" r={r} fill="none" stroke="var(--bg-subtle)" strokeWidth="8" />
+          <circle cx="50" cy="50" r={r} fill="none" stroke="var(--progress-track)" strokeWidth="8" />
           <circle
             cx="50"
             cy="50"
             r={r}
             fill="none"
-            stroke="var(--accent)"
+            stroke="var(--progress)"
             strokeWidth="8"
             strokeLinecap="round"
             strokeDasharray={c}
@@ -65,7 +65,9 @@ export function ProjectProgress({
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-semibold tracking-tight">{pct}%</span>
+          <span className="text-2xl font-semibold tabular-nums tracking-tight text-[var(--progress)]">
+            {pct}%
+          </span>
         </div>
       </div>
       {label ? (

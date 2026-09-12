@@ -3,24 +3,6 @@
 @tailwind utilities;
 
 :root {
-  --bg-base: #070b14;
-  --bg-elevated: #0c121c;
-  --bg-subtle: #121a26;
-  --bg-hover: #182232;
-  --border: rgba(107, 140, 255, 0.16);
-  --border-strong: rgba(107, 140, 255, 0.32);
-  --text-primary: #f4f7fb;
-  --text-secondary: #9aa8bd;
-  --text-muted: #6b7a90;
-  --accent: #6b8cff;
-  --accent-muted: rgba(107, 140, 255, 0.16);
-  --success: #3ddc97;
-  --warning: #f5b942;
-  --danger: #f07178;
-  --stage-fix: #6b8cff;
-  --stage-production: #a78bfa;
-  --stage-resolved: #f5b942;
-  --stage-closed: #3ddc97;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -32,25 +14,159 @@
   --sidebar-collapsed: 68px;
   --topbar-height: 56px;
   --mobile-nav-height: 64px;
+  --brand-gradient: linear-gradient(145deg, #8aa4ff 0%, #4d6ef5 100%);
   --background: var(--bg-base);
   --foreground: var(--text-primary);
 }
 
+/* Tema claro — padrão quando não há preferência salva. */
+:root,
+[data-theme="light"] {
+  --bg-base: #f5f7fa;
+  --bg-elevated: #ffffff;
+  --bg-subtle: #eef1f6;
+  --bg-hover: #e4e9f1;
+  --border: rgba(15, 23, 42, 0.1);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --text-primary: #0f172a;
+  --text-strong: #000000;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --accent: #3a58d6;
+  --accent-muted: rgba(58, 88, 214, 0.1);
+  --accent-ring: rgba(58, 88, 214, 0.24);
+  --accent-gradient: linear-gradient(180deg, #4a6ae0 0%, #3a58d6 100%);
+  --accent-shadow: 0 8px 20px rgba(58, 88, 214, 0.24);
+  --accent-shadow-lg: 0 10px 24px rgba(58, 88, 214, 0.26);
+  --success: #0f7a5a;
+  --warning: #96620a;
+  --danger: #c2333c;
+  --progress: #0f7a5a;
+  --progress-track: #e2e8f0;
+  --stage-fix: #3a58d6;
+  --stage-production: #6d3fc4;
+  --stage-resolved: #96620a;
+  --stage-closed: #0f7a5a;
+  --surface-bg: var(--bg-elevated);
+  --surface-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.06);
+  --card-shadow-sm:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 6px 16px rgba(15, 23, 42, 0.05);
+  --dialog-bg: #ffffff;
+  --dialog-border: rgba(15, 23, 42, 0.12);
+  --dialog-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.16),
+    0 2px 8px rgba(15, 23, 42, 0.06);
+  --control-bg: #ffffff;
+  --control-border: rgba(15, 23, 42, 0.16);
+  --auth-card-bg: #ffffff;
+  --auth-card-border: rgba(15, 23, 42, 0.1);
+  --auth-card-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.12),
+    0 2px 8px rgba(15, 23, 42, 0.05);
+  --auth-card-shadow-compact: 0 14px 32px rgba(15, 23, 42, 0.1);
+  --auth-field-bg: #f8fafc;
+  --auth-glow: radial-gradient(600px 320px at 50% 20%, rgba(58, 88, 214, 0.1), transparent 60%);
+  --particles-rgb: 58, 88, 214;
+  --empty-bg: rgba(255, 255, 255, 0.72);
+  --shimmer: rgba(15, 23, 42, 0.06);
+  --kanban-bg: rgba(255, 255, 255, 0.72);
+  --ticket-bg: #ffffff;
+  --btn-default-hover: #1e293b;
+  --selection-bg: rgba(58, 88, 214, 0.18);
+  --scrollbar-thumb: rgba(15, 23, 42, 0.22);
+  --body-bg:
+    radial-gradient(900px 480px at 12% -8%, rgba(58, 88, 214, 0.06) 0%, transparent 55%),
+    radial-gradient(700px 400px at 100% 0%, rgba(15, 122, 90, 0.04) 0%, transparent 40%),
+    var(--bg-base);
+}
+
+[data-theme="dark"] {
+  --bg-base: #070b14;
+  --bg-elevated: #0c121c;
+  --bg-subtle: #121a26;
+  --bg-hover: #182232;
+  --border: rgba(107, 140, 255, 0.16);
+  --border-strong: rgba(107, 140, 255, 0.32);
+  --text-primary: #f4f7fb;
+  --text-strong: #ffffff;
+  --text-secondary: #9aa8bd;
+  --text-muted: #6b7a90;
+  --accent: #6b8cff;
+  --accent-muted: rgba(107, 140, 255, 0.16);
+  --accent-ring: rgba(107, 140, 255, 0.28);
+  --accent-gradient: linear-gradient(180deg, #8aa4ff 0%, #6b8cff 100%);
+  --accent-shadow: 0 8px 20px rgba(107, 140, 255, 0.28);
+  --accent-shadow-lg: 0 10px 24px rgba(107, 140, 255, 0.32);
+  --success: #3ddc97;
+  --warning: #f5b942;
+  --danger: #f07178;
+  --progress: #3ddc97;
+  --progress-track: var(--bg-subtle);
+  --stage-fix: #6b8cff;
+  --stage-production: #a78bfa;
+  --stage-resolved: #f5b942;
+  --stage-closed: #3ddc97;
+  --surface-bg: linear-gradient(180deg, rgba(18, 26, 40, 0.94) 0%, var(--bg-elevated) 78%);
+  --surface-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.32),
+    0 0 28px rgba(107, 140, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --card-shadow-sm: 0 10px 24px rgba(0, 0, 0, 0.28);
+  --dialog-bg: linear-gradient(180deg, rgba(22, 28, 40, 0.96) 0%, var(--bg-elevated) 72%);
+  --dialog-border: rgba(107, 140, 255, 0.42);
+  --dialog-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(107, 140, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --control-bg: #0a0d14;
+  --control-border: rgba(107, 140, 255, 0.22);
+  --auth-card-bg: linear-gradient(180deg, rgba(22, 28, 40, 0.94) 0%, var(--bg-elevated) 72%);
+  --auth-card-border: rgba(107, 140, 255, 0.42);
+  --auth-card-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.45),
+    0 8px 28px rgba(107, 140, 255, 0.14),
+    0 0 48px rgba(107, 140, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --auth-card-shadow-compact:
+    0 12px 28px rgba(0, 0, 0, 0.4),
+    0 6px 18px rgba(107, 140, 255, 0.1),
+    0 0 24px rgba(107, 140, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --auth-field-bg: #0a0d12;
+  --auth-glow: radial-gradient(600px 320px at 50% 20%, rgba(107, 140, 255, 0.12), transparent 60%);
+  --particles-rgb: 107, 140, 255;
+  --empty-bg: rgba(12, 18, 28, 0.6);
+  --shimmer: rgba(255, 255, 255, 0.05);
+  --kanban-bg: rgba(10, 14, 22, 0.72);
+  --ticket-bg: #0c121c;
+  --btn-default-hover: #ffffff;
+  --selection-bg: rgba(107, 140, 255, 0.35);
+  --scrollbar-thumb: rgba(107, 140, 255, 0.28);
+  --body-bg:
+    radial-gradient(900px 480px at 12% -8%, rgba(107, 140, 255, 0.09) 0%, transparent 55%),
+    radial-gradient(700px 400px at 100% 0%, rgba(61, 220, 151, 0.04) 0%, transparent 40%),
+    var(--bg-base);
+}
+
 html {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
   color-scheme: dark;
 }
 
 ::selection {
-  background: rgba(107, 140, 255, 0.35);
+  background: var(--selection-bg);
   color: var(--text-primary);
 }
 
 body {
   color: var(--text-primary);
-  background:
-    radial-gradient(900px 480px at 12% -8%, rgba(107, 140, 255, 0.09) 0%, transparent 55%),
-    radial-gradient(700px 400px at 100% 0%, rgba(61, 220, 151, 0.04) 0%, transparent 40%),
-    var(--bg-base);
+  background: var(--body-bg);
   font-family: var(--font-geist-sans), Inter, ui-sans-serif, system-ui, sans-serif;
   min-height: 100vh;
   letter-spacing: -0.011em;
@@ -61,7 +177,7 @@ body {
 }
 
 * {
-  scrollbar-color: rgba(107, 140, 255, 0.28) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -76,25 +192,19 @@ body {
 
 @layer utilities {
   .hub-surface {
-    background: linear-gradient(180deg, rgba(18, 26, 40, 0.94) 0%, var(--bg-elevated) 78%);
+    background: var(--surface-bg);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-lg);
-    box-shadow:
-      0 10px 28px rgba(0, 0, 0, 0.32),
-      0 0 28px rgba(107, 140, 255, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow: var(--surface-shadow);
   }
   .hub-dialog {
-    background: linear-gradient(180deg, rgba(22, 28, 40, 0.96) 0%, var(--bg-elevated) 72%);
-    border: 1px solid rgba(107, 140, 255, 0.42);
-    box-shadow:
-      0 24px 60px rgba(0, 0, 0, 0.5),
-      0 0 40px rgba(107, 140, 255, 0.16),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    background: var(--dialog-bg);
+    border: 1px solid var(--dialog-border);
+    box-shadow: var(--dialog-shadow);
   }
   .hub-control {
-    @apply flex h-11 w-full rounded-xl border bg-[#0a0d14] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hub-focus disabled:cursor-not-allowed disabled:opacity-50;
-    border-color: rgba(107, 140, 255, 0.22);
+    @apply flex h-11 w-full rounded-xl border bg-[var(--control-bg)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hub-focus disabled:cursor-not-allowed disabled:opacity-50;
+    border-color: var(--control-border);
   }
   .hub-focus {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-base)];
@@ -107,22 +217,17 @@ body {
 .auth-card {
   border-radius: 24px;
   padding: 2rem;
-  background:
-    linear-gradient(180deg, rgba(22, 28, 40, 0.94) 0%, var(--bg-elevated) 72%);
-  border: 1px solid rgba(107, 140, 255, 0.42);
-  box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.45),
-    0 8px 28px rgba(107, 140, 255, 0.14),
-    0 0 48px rgba(107, 140, 255, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: var(--auth-card-bg);
+  border: 1px solid var(--auth-card-border);
+  box-shadow: var(--auth-card-shadow);
 }
 
 .auth-field {
   height: 48px;
   border-radius: 12px;
   padding-left: 2.5rem;
-  background: #0a0d12;
-  border-color: rgba(107, 140, 255, 0.22);
+  background: var(--auth-field-bg);
+  border-color: var(--control-border);
 }
 
 .auth-cta {
@@ -144,7 +249,7 @@ select.hub-control {
 
 .kanban-col {
   border-radius: 16px;
-  background: rgba(10, 14, 22, 0.72);
+  background: var(--kanban-bg);
   min-height: 280px;
 }
 
@@ -186,32 +291,28 @@ select.hub-control {
 
 .ticket-card-fix {
   border-color: rgba(107, 140, 255, 0.4);
-  background: linear-gradient(180deg, rgba(107, 140, 255, 0.12) 0%, #0c121c 52%);
+  background: linear-gradient(180deg, rgba(107, 140, 255, 0.12) 0%, var(--ticket-bg) 52%);
 }
 
 .ticket-card-production {
   border-color: rgba(167, 139, 250, 0.42);
-  background: linear-gradient(180deg, rgba(167, 139, 250, 0.12) 0%, #0c121c 52%);
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.12) 0%, var(--ticket-bg) 52%);
 }
 
 .ticket-card-resolved {
   border-color: rgba(245, 185, 66, 0.42);
-  background: linear-gradient(180deg, rgba(245, 185, 66, 0.12) 0%, #0c121c 52%);
+  background: linear-gradient(180deg, rgba(245, 185, 66, 0.12) 0%, var(--ticket-bg) 52%);
 }
 
 .ticket-card-closed {
   border-color: rgba(61, 220, 151, 0.4);
-  background: linear-gradient(180deg, rgba(61, 220, 151, 0.12) 0%, #0c121c 52%);
+  background: linear-gradient(180deg, rgba(61, 220, 151, 0.12) 0%, var(--ticket-bg) 52%);
 }
 
 @media (max-width: 480px) {
   .auth-card {
     padding: 1.5rem;
-    box-shadow:
-      0 12px 28px rgba(0, 0, 0, 0.4),
-      0 6px 18px rgba(107, 140, 255, 0.1),
-      0 0 24px rgba(107, 140, 255, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow: var(--auth-card-shadow-compact);
   }
 }
 

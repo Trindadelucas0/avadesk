@@ -43,7 +43,7 @@ function UpdateCardBody({
         <StatusBadge status={update.status} />
         {showVisibility ? <VisibilityChip visible={update.visibleToClient} /> : null}
       </div>
-      <h3 className="mt-2 text-sm font-medium text-[var(--text-primary)] group-hover:text-white">
+      <h3 className="mt-2 text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--text-strong)]">
         {update.title}
       </h3>
       {place ? <p className="mt-1 text-xs text-[var(--text-muted)]">{place}</p> : null}

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
-/** Accent Avadesk (`--accent`), equivalente visual ao `#3a86ff` do template. */
-const COLOR = { r: 107, g: 140, b: 255 };
+/** Fallback do accent escuro caso `--particles-rgb` não resolva. */
+const FALLBACK_RGB = "107, 140, 255";
 const BASE_COUNT = 80;
 const DENSITY_AREA = 800;
 const LINK_DISTANCE = 150;
@@ -23,6 +23,13 @@ type Particle = {
   radius: number;
   opacity: number;
 };
+
+function readParticleRgb() {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue("--particles-rgb")
+    .trim();
+  return value || FALLBACK_RGB;
+}
 
 function particleCap(width: number) {
   return width < 768 ? MOBILE_CAP : DESKTOP_CAP;
@@ -76,7 +83,8 @@ function drawFrame(
   particles: Particle[],
   width: number,
   height: number,
-  move: boolean
+  move: boolean,
+  rgb: string
 ) {
   ctx.clearRect(0, 0, width, height);
   const ms = MOVE_SPEED / 2;
@@ -89,7 +97,7 @@ function drawFrame(
     }
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${COLOR.r},${COLOR.g},${COLOR.b},${p.opacity})`;
+    ctx.fillStyle = `rgba(${rgb},${p.opacity})`;
     ctx.fill();
   }
 
@@ -106,7 +114,7 @@ function drawFrame(
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = `rgba(${COLOR.r},${COLOR.g},${COLOR.b},${opacity})`;
+      ctx.strokeStyle = `rgba(${rgb},${opacity})`;
       ctx.lineWidth = LINK_WIDTH;
       ctx.stroke();
     }
@@ -127,6 +135,7 @@ export function ConnectedParticles() {
     let width = 0;
     let height = 0;
     let reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let rgb = readParticleRgb();
 
     const resize = () => {
       const parent = canvas.parentElement;
@@ -139,12 +148,12 @@ export function ConnectedParticles() {
       canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       particles = seedParticles(width, height, particles);
-      if (reduced) drawFrame(ctx, particles, width, height, false);
+      if (reduced) drawFrame(ctx, particles, width, height, false, rgb);
     };
 
     const loop = () => {
       if (document.visibilityState === "visible" && !reduced) {
-        drawFrame(ctx, particles, width, height, true);
+        drawFrame(ctx, particles, width, height, true, rgb);
       }
       frame = window.requestAnimationFrame(loop);
     };
@@ -152,13 +161,23 @@ export function ConnectedParticles() {
     const onMotion = (event: MediaQueryListEvent) => {
       reduced = event.matches;
       if (reduced) {
-        drawFrame(ctx, particles, width, height, false);
+        drawFrame(ctx, particles, width, height, false, rgb);
       }
     };
 
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     motion.addEventListener("change", onMotion);
     window.addEventListener("resize", resize);
+
+    const theme = new MutationObserver(() => {
+      rgb = readParticleRgb();
+      if (reduced) drawFrame(ctx, particles, width, height, false, rgb);
+    });
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
     resize();
     if (!reduced) frame = window.requestAnimationFrame(loop);
 
@@ -166,6 +185,7 @@ export function ConnectedParticles() {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
       motion.removeEventListener("change", onMotion);
+      theme.disconnect();
     };
   }, []);
 

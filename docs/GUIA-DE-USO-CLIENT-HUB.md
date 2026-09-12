@@ -1,7 +1,7 @@
 # Guia de uso — Avadesk
 
 Tutorial prático para o **dono (ADMIN)** e para o **CLIENTE**.  
-Atualizado em 11/09/2026 · marca Avadesk · Acesso e Ambientes no admin · live no portal (SSE) · e-mail no login do cliente · avatar do header abre o perfil · dados no Postgres relacional (`/v2`). Sessão HttpOnly. E-mail Resend + Web Push.
+Atualizado em 12/09/2026 · marca Avadesk · Acesso e Ambientes no admin · live no portal (SSE) · e-mail no login do cliente · avatar do header abre o perfil (leitura; Editar para alterar) · dados no Postgres relacional (`/v2`). Sessão HttpOnly. E-mail Resend + Web Push.
 
 ---
 
@@ -126,7 +126,7 @@ No modal:
 ### 3.6.1 Como o admin trata um chamado
 
 1. Menu **Chamados** (`/admin/chamados`) ou o bloco no projeto.
-2. **Abrir chamado** — escolha projeto, tipo e origem **Relato do cliente** se veio de WhatsApp/reunião. Imagens (print) são opcionais — PNG, JPG ou WebP, até 4 arquivos.
+2. **Abrir chamado** — escolha projeto, tipo (Bug, Implementação, Funcionalidade nova, Rotina ou Outra coisa) e origem **Relato do cliente** se veio de WhatsApp/reunião. Imagens (print) são opcionais — PNG, JPG ou WebP, até 4 arquivos.
 3. Expanda o card para ler o contexto (e as imagens, se houver). Se **você** abriu o chamado e ele ainda não saiu de Correção (ninguém avançou a etapa), use **Editar** para corrigir tipo, título e campos. Depois que a etapa andar — ou se o chamado for reaberto — o botão some.
 4. Avance **Correção → Produção → Resolvido** (um passo por vez), arrastando ou pelos botões. A etapa atual gira no card do cliente; as feitas ficam verdes. Cada avanço envia **e-mail + notificação** para o **e-mail de login** do usuário CLIENT da empresa (e alerta no celular se o cliente autorizou). Se o cliente estiver com o portal aberto, o card atualiza **na hora**, sem ele precisar recarregar.
 5. Quando estiver em Resolvido, o cliente confirma. Você **não** fecha no lugar dele. O card some da fila; o histórico fica em **Concluídos**.
@@ -183,7 +183,7 @@ Cliente cadastrado → Usuário CLIENT do mesmo clientId
 
 ### 3.11.1 Perfil (header)
 
-No canto direito do header, o círculo com a sua letra (e o nome no computador) abre **o seu perfil** (`/admin/profile`): e-mail, papel e nome de exibição. **Sair** ao lado só encerra a sessão — não é o perfil.
+No canto direito do header, o círculo com a sua letra (e o nome no computador) abre **o seu perfil** (`/admin/profile`): e-mail, papel e nome de exibição em leitura. Para alterar o nome, use **Editar** e depois **Salvar** (ou **Cancelar**). **Sair** ao lado só encerra a sessão — não é o perfil.
 
 ### 3.12 Celular (Admin)
 
@@ -236,7 +236,7 @@ Quando há projeto:
 ### 4.3.1 Chamados
 
 - Menu **Chamados** ou no detalhe do projeto: **Abrir chamado**.
-- Escolha o tipo (Bug, Implementação, Funcionalidade nova, Rotina) — os campos mudam. Não há prazo desejado. Se quiser, anexe prints (opcional).
+- Escolha **Bug** (algo quebrou) ou **Outra coisa** (você dá o nome e descreve). Implementação, funcionalidade nova e rotina só o time abre. Não há prazo desejado. Se quiser, anexe prints (opcional).
 - O card fica pequeno (título + etapas). Toque para ver o relato completo e as imagens.
 - Se **você** abriu o chamado e o time ainda não avançou a etapa, aparece **Editar**. Depois que for para Produção (ou for reaberto), não dá mais para mudar o relato.
 - Etapa atual: ícone girando. Etapas feitas e Resolvido: V verde.
@@ -276,8 +276,9 @@ Quando há projeto:
 ### 4.9 Perfil
 
 - No header, o círculo com a sua letra (e o nome no computador) abre `/client/profile`.
+- A tela abre em **leitura**. **Editar** na conta altera o nome de exibição; **Editar** na empresa abre a ficha. **Cancelar** descarta sem gravar.
 - **Sua conta:** e-mail de login, Instagrams (se informados no onboarding) e **nome de exibição**.
-- **Dados da empresa:** nome, e-mail de contato, telefone e WhatsApp (obrigatórios ao salvar); CNPJ, empresa, segmento e mais informações opcionais. Complete o que o admin não preencheu.
+- **Dados da empresa:** nome, e-mail de contato, telefone e WhatsApp (obrigatórios ao salvar); CNPJ, empresa, segmento e mais informações opcionais. Se faltar obrigatório, aparece o aviso **Complete os dados da empresa**.
 - O ícone **Sair** ao lado do avatar só encerra a sessão.
 
 ---

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { PageHeader, PageSkeleton } from "@/components/hub";
+import { PageHeader, PageSkeleton, ThemePicker } from "@/components/hub";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,16 @@ export default function ClientSettingsPage() {
         title="Configurações"
         description="Preferências do portal — gravadas no banco com o restante do Hub (sem envio real de e-mail)."
       />
+
+      <section className="hub-surface space-y-4 p-5">
+        <div>
+          <h2 className="text-sm font-medium">Aparência</h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Tema da interface neste dispositivo.
+          </p>
+        </div>
+        <ThemePicker />
+      </section>
 
       <section className="hub-surface space-y-4 p-5">
         <h2 className="text-sm font-medium">Notificações</h2>

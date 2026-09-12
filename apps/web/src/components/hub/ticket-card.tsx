@@ -20,6 +20,7 @@ import {
   ticketStageLabels,
   ticketTypeLabel,
   ticketAttachmentUrl,
+  CLIENT_TICKET_TYPE_VALUES,
 } from "@/lib/tickets";
 
 function StepIcon({
@@ -63,7 +64,9 @@ function typeBadgeClass(type: Ticket["type"]) {
     case "feature":
       return "border-[rgba(61,220,151,0.35)] bg-[rgba(61,220,151,0.12)] text-[var(--success)]";
     case "implementation":
-      return "border-[rgba(167,139,250,0.4)] bg-[rgba(167,139,250,0.12)] text-[#c4b5fd]";
+      return "border-[rgba(167,139,250,0.4)] bg-[rgba(167,139,250,0.12)] text-[var(--stage-production)]";
+    case "other":
+      return "border-[rgba(148,163,184,0.4)] bg-[rgba(148,163,184,0.12)] text-[var(--text-secondary)]";
     default:
       return "border-[rgba(245,185,66,0.35)] bg-[rgba(245,185,66,0.12)] text-[var(--warning)]";
   }
@@ -86,7 +89,7 @@ function stageCardClass(stage: TicketStage) {
 }
 
 function stageChipClass(stage: TicketStage) {
-  if (stage === "production") return "bg-[rgba(167,139,250,0.14)] text-[#c4b5fd]";
+  if (stage === "production") return "bg-[rgba(167,139,250,0.14)] text-[var(--stage-production)]";
   if (stage === "resolved") return "bg-[rgba(245,185,66,0.14)] text-[var(--warning)]";
   if (stage === "closed") return "bg-[rgba(61,220,151,0.14)] text-[var(--success)]";
   return "bg-[var(--accent-muted)] text-[var(--accent)]";
@@ -188,7 +191,7 @@ export function TicketCard({
   return (
     <article
       className={cn(
-        "overflow-hidden rounded-xl border shadow-[0_10px_24px_rgba(0,0,0,0.28)]",
+        "overflow-hidden rounded-xl border shadow-[var(--card-shadow-sm)]",
         stageCardClass(ticket.stage)
       )}
     >
@@ -301,6 +304,7 @@ export function TicketCard({
               <p className="mb-3 text-sm font-medium">Editar chamado</p>
               <TicketForm
                 ticket={ticket}
+                allowedTypes={mode === "client" ? CLIENT_TICKET_TYPE_VALUES : undefined}
                 onCancel={() => setEditing(false)}
                 onSaved={() => setEditing(false)}
               />
