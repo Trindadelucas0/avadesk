@@ -564,6 +564,38 @@ describe("V2 tickets", { skip: !postgresReady }, () => {
     assert.equal(confirm.status, 404);
   });
 
+  it("CLIENT downloads ticket PDF; other tenant 404; unauthenticated 401", async () => {
+    const created = await request(app)
+      .post("/v2/tickets")
+      .set("Cookie", clientCookie)
+      .send({
+        projectId: projectAId,
+        type: "bug",
+        title: "PDF do chamado",
+        fields: { problem: "A tela trava ao entrar.", where: "Login" },
+      });
+    assert.equal(created.status, 201);
+    const id = created.body.ticket.id;
+
+    const pdf = await request(app).get(`/v2/tickets/${id}/pdf`).set("Cookie", clientCookie);
+    assert.equal(pdf.status, 200);
+    assert.match(String(pdf.headers["content-type"]), /application\/pdf/);
+    assert.match(String(pdf.headers["content-disposition"]), /attachment/);
+    assert.match(String(pdf.headers["content-disposition"]), /chamado-/);
+    const body = Buffer.isBuffer(pdf.body) ? pdf.body : Buffer.from(pdf.body);
+    assert.ok(body.length > 80);
+    assert.equal(body.subarray(0, 4).toString(), "%PDF");
+
+    const other = await request(app).get(`/v2/tickets/${id}/pdf`).set("Cookie", clientBCookie);
+    assert.equal(other.status, 404);
+
+    const anon = await request(app).get(`/v2/tickets/${id}/pdf`);
+    assert.equal(anon.status, 401);
+
+    const bad = await request(app).get("/v2/tickets/not-a-uuid/pdf").set("Cookie", clientCookie);
+    assert.equal(bad.status, 404);
+  });
+
   it("staff advances stages; skip is 409; client confirms", async () => {
     const created = await request(app)
       .post("/v2/tickets")

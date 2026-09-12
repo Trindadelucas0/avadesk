@@ -136,6 +136,10 @@ export function ticketAttachmentUrl(ticketId: string, attachmentId: string): str
   return `/api/v2/tickets/${ticketId}/attachments/${attachmentId}/download`;
 }
 
+export function ticketPdfUrl(ticketId: string): string {
+  return `/api/v2/tickets/${ticketId}/pdf`;
+}
+
 export function canEditTicketContent(ticket: Ticket, userId: string | undefined): boolean {
   if (!userId || !ticket.createdByUserId || ticket.createdByUserId !== userId) return false;
   if (ticket.stage !== "fix") return false;

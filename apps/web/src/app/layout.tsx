@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { PRODUCT_NAME } from "@/lib/brand";
-import { THEME_COLOR, THEME_INIT_SCRIPT } from "@/lib/theme";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,8 +37,9 @@ export const metadata: Metadata = {
   },
 };
 
+// `themeColor` fica fora daqui de propósito: quem escreve a meta é o tema ativo
+// (`applyTheme`), senão a hidratação do Next devolve a cor do tema padrão.
 export const viewport: Viewport = {
-  themeColor: THEME_COLOR.light,
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

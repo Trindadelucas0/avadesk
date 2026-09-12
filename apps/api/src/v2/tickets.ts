@@ -23,6 +23,7 @@ import {
   safeOriginalName,
   storageRoot,
 } from "../lib/storage.js";
+import { buildTicketPdf, ticketPdfDisposition } from "../lib/ticket-pdf.js";
 
 const uuid = z.string().uuid();
 const STAGES = ["fix", "production", "resolved"] as const;
@@ -567,6 +568,17 @@ const messageLimiter = rateLimit({
   message: { error: { code: "RATE_LIMIT", message: "Muitas mensagens. Tente mais tarde." } },
 });
 
+const pdfLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  skip: skipTicketLimiter,
+  keyGenerator: (req) => String(req.user?.id ?? "anon"),
+  validate: { xForwardedForHeader: false },
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "RATE_LIMIT", message: "Muitos downloads. Tente mais tarde." } },
+});
+
 export const v2TicketsRouter = Router();
 
 v2TicketsRouter.get("/", requireAuth, async (req, res) => {
@@ -610,6 +622,22 @@ v2TicketsRouter.get("/:id", requireAuth, async (req, res) => {
     return res.json({ ticket: await toTicketDto(row) });
   } catch (err) {
     return handleRouteError(res, err, "[v2/tickets:get]");
+  }
+});
+
+v2TicketsRouter.get("/:id/pdf", requireAuth, pdfLimiter, async (req, res) => {
+  const id = uuid.safeParse(req.params.id);
+  if (!id.success) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+  try {
+    const row = await getTicketRow(req.user!, id.data);
+    if (!row) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    const ticket = await toTicketDto(row);
+    const bytes = await buildTicketPdf(ticket);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", ticketPdfDisposition(ticket.title));
+    return res.send(Buffer.from(bytes));
+  } catch (err) {
+    return handleRouteError(res, err, "[v2/tickets:pdf]");
   }
 });
 

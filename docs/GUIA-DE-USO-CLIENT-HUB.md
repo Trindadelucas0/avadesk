@@ -127,7 +127,7 @@ No modal:
 
 1. Menu **Chamados** (`/admin/chamados`) ou o bloco no projeto.
 2. **Abrir chamado** — escolha projeto, tipo (Bug, Implementação, Funcionalidade nova, Rotina ou Outra coisa) e origem **Relato do cliente** se veio de WhatsApp/reunião. Imagens (print) são opcionais — PNG, JPG ou WebP, até 4 arquivos.
-3. Expanda o card para ler o contexto (e as imagens, se houver). Se **você** abriu o chamado e ele ainda não saiu de Correção (ninguém avançou a etapa), use **Editar** para corrigir tipo, título e campos. Depois que a etapa andar — ou se o chamado for reaberto — o botão some.
+3. Expanda o card para ler o contexto (e as imagens, se houver). Use **Baixar PDF** para levar o chamado ao Cursor (texto dos campos, histórico e conversa; prints ficam só como nomes). Se **você** abriu o chamado e ele ainda não saiu de Correção (ninguém avançou a etapa), use **Editar** para corrigir tipo, título e campos. Depois que a etapa andar — ou se o chamado for reaberto — o Editar some; o PDF continua.
 4. Avance **Correção → Produção → Resolvido** (um passo por vez), arrastando ou pelos botões. A etapa atual gira no card do cliente; as feitas ficam verdes. Cada avanço envia **e-mail + notificação** para o **e-mail de login** do usuário CLIENT da empresa (e alerta no celular se o cliente autorizou). Se o cliente estiver com o portal aberto, o card atualiza **na hora**, sem ele precisar recarregar.
 5. Quando estiver em Resolvido, o cliente confirma. Você **não** fecha no lugar dele. O card some da fila; o histórico fica em **Concluídos**.
 6. Se faltar dado (print, CNPJ, acesso), expanda o card, escreva em **Pedir informação ao cliente** e envie. O card ganha o selo **Aguardando resposta [nome]**. Quando o cliente responder, o selo some e chega aviso para o time. Isso **não** é a coluna Aguardando cliente (Resolvido).
@@ -237,7 +237,7 @@ Quando há projeto:
 
 - Menu **Chamados** ou no detalhe do projeto: **Abrir chamado**.
 - Escolha **Bug** (algo quebrou) ou **Outra coisa** (você dá o nome e descreve). Implementação, funcionalidade nova e rotina só o time abre. Não há prazo desejado. Se quiser, anexe prints (opcional).
-- O card fica pequeno (título + etapas). Toque para ver o relato completo e as imagens.
+- O card fica pequeno (título + etapas). Toque para ver o relato completo e as imagens. **Baixar PDF** gera o texto da demanda para colar no Cursor (aberto ou em Concluídos).
 - Se **você** abriu o chamado e o time ainda não avançou a etapa, aparece **Editar**. Depois que for para Produção (ou for reaberto), não dá mais para mudar o relato.
 - Etapa atual: ícone girando. Etapas feitas e Resolvido: V verde.
 - Quando o time pedir mais informação, o card sobe na lista com o selo **Aguardando resposta [seu nome]**. Abra, leia a conversa e use **Enviar resposta**.

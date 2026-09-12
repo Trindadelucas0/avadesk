@@ -35,17 +35,29 @@ export function storeTheme(theme: Theme) {
   }
 }
 
+/**
+ * `meta[name="theme-color"]` é criada aqui, não pelo `viewport` do Next: a
+ * hidratação recria as tags de metadata e desfaria a cor do tema ativo.
+ */
+function applyThemeColor(theme: Theme) {
+  let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.name = "theme-color";
+    document.head.appendChild(meta);
+  }
+  meta.content = THEME_COLOR[theme];
+}
+
 export function applyTheme(theme: Theme) {
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.classList.toggle("dark", theme === "dark");
-  document
-    .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", THEME_COLOR[theme]);
+  applyThemeColor(theme);
 }
 
 /**
  * Roda antes do primeiro paint para evitar flash do tema errado.
  * Mantido como string porque é injetado inline no documento.
  */
-export const THEME_INIT_SCRIPT = `(function(){try{var v=localStorage.getItem("${THEME_STORAGE_KEY}");var t=v==="dark"||v==="light"?v:"${DEFAULT_THEME}";var r=document.documentElement;r.setAttribute("data-theme",t);if(t==="dark")r.classList.add("dark");}catch(e){document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");}})();`;
+export const THEME_INIT_SCRIPT = `(function(){try{var v=localStorage.getItem("${THEME_STORAGE_KEY}");var t=v==="dark"||v==="light"?v:"${DEFAULT_THEME}";var r=document.documentElement;r.setAttribute("data-theme",t);if(t==="dark")r.classList.add("dark");var m=document.createElement("meta");m.name="theme-color";m.content=t==="dark"?"${THEME_COLOR.dark}":"${THEME_COLOR.light}";document.head.appendChild(m);}catch(e){document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");}})();`;

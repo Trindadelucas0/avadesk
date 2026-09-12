@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, GripVertical, Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,7 @@ import {
   ticketStageLabels,
   ticketTypeLabel,
   ticketAttachmentUrl,
+  ticketPdfUrl,
   CLIENT_TICKET_TYPE_VALUES,
 } from "@/lib/tickets";
 
@@ -123,6 +124,7 @@ export function TicketCard({
   const [reopenNote, setReopenNote] = useState("");
   const [showReopen, setShowReopen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [messageBody, setMessageBody] = useState("");
   const [waitForUserId, setWaitForUserId] = useState("");
   const canEdit = canEditTicketContent(ticket, session?.id);
@@ -182,6 +184,39 @@ export function TicketCard({
       toast.error(err instanceof Error ? err.message : "Não foi possível atualizar.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const downloadPdf = async (e: MouseEvent) => {
+    e.stopPropagation();
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const res = await fetch(ticketPdfUrl(ticket.id), { credentials: "include", cache: "no-store" });
+      if (!res.ok) {
+        let message = "Não foi possível baixar.";
+        try {
+          const data = (await res.json()) as { error?: { message?: string } };
+          if (data?.error?.message) message = data.error.message;
+        } catch {
+          /* body is not JSON */
+        }
+        throw new Error(message);
+      }
+      const blob = await res.blob();
+      const header = res.headers.get("content-disposition") ?? "";
+      const match = /filename="([^"]+)"/i.exec(header);
+      const name = match?.[1] || `chamado-${ticket.id.slice(0, 8)}.pdf`;
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível baixar.");
+    } finally {
+      setPdfBusy(false);
     }
   };
 
@@ -353,19 +388,31 @@ export function TicketCard({
                   </ul>
                 </div>
               ) : null}
-              {canEdit ? (
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                {canEdit ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="min-h-11 w-full sm:w-auto"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditing(true);
+                    }}
+                  >
+                    Editar
+                  </Button>
+                ) : null}
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full sm:w-auto"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditing(true);
-                  }}
+                  className="min-h-11 w-full sm:w-auto"
+                  disabled={pdfBusy}
+                  aria-busy={pdfBusy}
+                  onClick={(e) => void downloadPdf(e)}
                 >
-                  Editar
+                  {pdfBusy ? "Gerando…" : "Baixar PDF"}
                 </Button>
-              ) : null}
+              </div>
             </>
           )}
 

@@ -6,10 +6,21 @@ Publicar **sem** desligar ou reescrever outros sites/túneis. Código só via Gi
 
 ```bash
 git clone https://github.com/Trindadelucas0/avadesk.git /opt/avadesk
-# atualizar: git -C /opt/avadesk pull
 ```
 
 Não copiar `.env` do PC. Não usar `scp` como fonte principal.
+
+## Atualizar (dia a dia)
+
+Já instalado em `/opt/avadesk`. **Não** rode `deploy/avadesk-deploy.sh` de novo: ele reescreve `.env`.
+
+Copiar e colar o bloco em [`deploy/ATUALIZAR-VPS.txt`](../deploy/ATUALIZAR-VPS.txt), ou:
+
+```bash
+bash /opt/avadesk/deploy/avadesk-update.sh
+```
+
+Isso faz `git pull --ff-only`, confirma o container `avadesk-pg` (só `docker start` se estiver parado; **não** recria), `npm ci`, build, migrate, seed (não apaga dados), `pm2 restart` só de `avadesk-api` e `avadesk-web`. Cópia no servidor: `/root/ATUALIZAR-AVADESK.txt`.
 
 ## Portas (loopback)
 

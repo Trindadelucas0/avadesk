@@ -2,8 +2,8 @@
 
 | Item | Valor |
 |------|--------|
-| Versão do sistema | 3.15.1 — Chamados |
-| Última atualização | 12/09/2026 (cliente abre só Bug e Outra coisa) |
+| Versão do sistema | 3.15.3 — Chamados |
+| Última atualização | 12/09/2026 (TXT de atualização da VPS) |
 | Fonte oficial | Este arquivo |
 | Guia de uso | [docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md) |
 | PRD / wireframes | [docs/PRD-NEXUS-PORTAL-CLIENTE.md](docs/PRD-NEXUS-PORTAL-CLIENTE.md) |
@@ -32,6 +32,8 @@ Tutorial: **[docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md)**.
 
 | Versão | Nome | Mudança |
 |--------|------|---------|
+| 3.15.3 | Chamados | Atualizar a VPS: copiar e colar [`deploy/ATUALIZAR-VPS.txt`](deploy/ATUALIZAR-VPS.txt) ou `bash /opt/avadesk/deploy/avadesk-update.sh`. Não usar `avadesk-deploy.sh` no dia a dia (reescreve `.env`). Sem mudança de telas ou regras. |
+| 3.15.2 | Chamados | Card expandido: **Baixar PDF** (admin e cliente, aberto ou concluído). `GET /v2/tickets/:id/pdf` (texto + nomes das imagens; sem bytes). Outro tenant 404. PDF **não** entra em anexo do chamado. |
 | 3.15.1 | Chamados | No portal, o cliente só abre **Bug** ou **Outra coisa** (nome 2–60 + detalhes; foto opcional). Staff continua com Implementação / Funcionalidade / Rotina. `POST`/`PATCH content`: CLIENT com outro tipo → 403. Tipo `other` no CHECK (`011_ticket_type_other.sql`). Tickets antigos permanecem. |
 | 3.15.0 | Aparência | Tema **claro** e **escuro**. Claro é o padrão no primeiro acesso; a escolha fica em `localStorage["avadesk-theme"]` (por dispositivo, fora do banco e da API). Interruptor no header e cards **Aparência** em `/client/settings` e `/admin/settings`. Anel, número e barras de evolução saem do azul `--accent` e passam a usar `--progress` (verde). Sem mudança de API, `progressPct`, etapas ou permissões. |
 | 3.14.9 | Perfil | `/admin/profile` e `/client/profile` abrem em leitura. **Editar** mostra o formulário; **Cancelar** descarta; **Salvar** usa as mesmas APIs (`PATCH /v2/auth/me`, `PATCH /v2/clients/:id`). Onboarding inalterado. |
@@ -120,6 +122,7 @@ Seed: `npm run seed` **não apaga** clientes, usuários, projetos nem updates. S
 | Migration tipo Outra coisa | `db/migrations/011_ticket_type_other.sql` |
 | Migration mensagens chamado | `db/migrations/008_ticket_messages.sql` |
 | Chamados API | `apps/api/src/v2/tickets.ts` |
+| PDF do chamado | `apps/api/src/lib/ticket-pdf.ts` (`GET /v2/tickets/:id/pdf`) |
 | Kanban chamados | `apps/web/src/components/hub/ticket-board.tsx` |
 | Concluídos (data) | `apps/web/src/components/hub/closed-tickets-panel.tsx` |
 | Auth cookie | `apps/api/src/lib/auth.ts` |
@@ -297,6 +300,7 @@ Lista em `/client/chamados`. O cliente só escolhe **Bug** ou **Outra coisa** (�
 | Concluídos | De / Até | Arquivo dos encerrados | Sim (na consulta) | Admin ou cliente | date | `client_confirmed_at` | `GET /v2/tickets?stage=closed&from=&to=` | Sem datas = 400; intervalo máx. 366 dias; limite 100 | `closed-tickets-panel.tsx` |
 | Card | Etapas | fix / production / resolved | — | Admin move | PATCH | `tickets.stage` | Spinner na atual; V verde nas feitas e em Resolvido; botões no expandido | Não pula etapa; não vai a `closed` | `ticket-card.tsx` |
 | Card expandido | Editar | Corrige tipo, título e campos | Condicional | Quem abriu | PATCH content | `tickets.type` `title` `fields` | Botão só se intacto; form no card | Não-autor 403; outro tenant 404; já iniciado/reaberto 409 | `PATCH /v2/tickets/:id/content` |
+| Card expandido | Baixar PDF | Demanda para o Cursor | Não | Admin ou cliente do chamado | GET | arquivo gerado | Texto com rótulos do form + histórico + conversa + nomes das imagens | Outro tenant 404; sem sessão 401; 30/min (CLIENT); não é anexo | `GET /v2/tickets/:id/pdf` |
 | Aviso | E-mail + in-app + push | Copy da etapa (Produção, Resolvido, etc.) | — | Sistema | `notifyUsers` | outbox + `notifications` + Web Push | Omite o ator; falha de envio não desfaz o PATCH | Tenant / staff | `apps/api/src/lib/notify.ts` |
 | Card expandido | Confirmar | Cliente diz que está ok | Condicional | CLIENT | POST confirm | `stage=closed` | `accent` + `lg`; só se `resolved` | Admin 403; outro tenant 404 | `POST /v2/tickets/:id/confirm` |
 | Card expandido | Ainda não está ok | Abre o formulário de reabertura | Condicional | CLIENT | clique | formulário no card | `danger` + `lg`; só se `resolved` | Admin não vê | `ticket-card.tsx` |
@@ -311,7 +315,7 @@ Lista em `/client/chamados`. O cliente só escolhe **Bug** ou **Outra coisa** (�
 | Filtro URL | `?stage=` | Foco da coluna ou arquivo | Não | Deep link KPI | query | `fix`/`production`/`resolved` destacam coluna; `closed` abre **Concluídos** (mês atual) | Não esconde as outras colunas abertas | `?type=` ainda filtra | `apps/web/src/app/admin/chamados/page.tsx` |
 | Live | Tela do cliente | Badge/status sem F5 | — | Sistema | SSE `hub.changed` | `GET /v2/events` → bootstrap | Toast “Chamado atualizado” em `/client/*` (1x/5s); card expandido permanece | Sem sessão 401; outro tenant não recebe | `apps/web/src/lib/hub-sync.ts` |
 
-Endpoints: `GET/POST /v2/tickets`, `GET/PATCH /v2/tickets/:id`, `PATCH /v2/tickets/:id/content`, `POST /v2/tickets/:id/confirm`, `POST /v2/tickets/:id/reopen`, `POST /v2/tickets/:id/messages`, `POST /v2/tickets/:id/attachments`, `GET /v2/tickets/:id/attachments/:attId/download`. `GET /v2/tickets` default `stage=open` (`<> closed`). Arquivo: `stage=closed` exige `from` e `to` (`YYYY-MM-DD`); outro tenant não vê. Bootstrap inclui até 100 chamados **abertos** do tenant (metadados de anexo e mensagens, sem bytes). Mudança de etapa também emite SSE (`reason: ticket`); o cliente autenticado faz `refresh` do bootstrap. Edição de conteúdo emite SSE, sem e-mail/push. Pedido/resposta de informação notifica o destinatário (cliente) ou o time e emite SSE.
+Endpoints: `GET/POST /v2/tickets`, `GET/PATCH /v2/tickets/:id`, `GET /v2/tickets/:id/pdf`, `PATCH /v2/tickets/:id/content`, `POST /v2/tickets/:id/confirm`, `POST /v2/tickets/:id/reopen`, `POST /v2/tickets/:id/messages`, `POST /v2/tickets/:id/attachments`, `GET /v2/tickets/:id/attachments/:attId/download`. `GET /v2/tickets` default `stage=open` (`<> closed`). Arquivo: `stage=closed` exige `from` e `to` (`YYYY-MM-DD`); outro tenant não vê. Bootstrap inclui até 100 chamados **abertos** do tenant (metadados de anexo e mensagens, sem bytes). Mudança de etapa também emite SSE (`reason: ticket`); o cliente autenticado faz `refresh` do bootstrap. Edição de conteúdo emite SSE, sem e-mail/push. Pedido/resposta de informação notifica o destinatário (cliente) ou o time e emite SSE.
 
 ### 6.8 Perfil (header)
 
@@ -383,7 +387,7 @@ O accent azul continua sendo marca/ação (CTA, foco, item ativo do menu, selo d
 11. Usuário: `admin`/`manager` exigem `client_id` nulo; `client` exige empresa. `GET/PATCH /v2/users/:id` e `POST /v2/users/:id/password` só para staff; CLIENT 403. PATCH persiste e-mail único. Promover cliente a staff zera a empresa. Rebaixar staff a cliente sem `clientId` → 400. Senha definida pelo admin não vai no e-mail; sessão HMAC antiga não é revogada até expirar ou logout; `active=false` bloqueia o próximo request.
 12. Live: `GET /v2/events` exige sessão. O evento só tem `{ type, reason }` (sem PII). CLIENT só recebe se o `client_id` da sessão for o do recurso; staff recebe todos; o ator da mutação não recebe. Poll 30s cobre SSE caído. Sem Redis: um processo Node.
 13. Web Push `href` só path relativo (`/`…, sem `//` nem protocolo). `POST /v2/notifications` rejeita URL absoluta (400). Toque no alerta abre popup central; clique na lista do sino não.
-14. Chamado: imagens opcionais só na abertura (PNG/JPEG/WebP, magic bytes, máx. 4 × 2 MB). Download autenticado; CLIENT de outro tenant 404. Não entram em `files`. `desiredDate` no POST é 400.
+14. Chamado: imagens opcionais só na abertura (PNG/JPEG/WebP, magic bytes, máx. 4 × 2 MB). Download autenticado; CLIENT de outro tenant 404. Não entram em `files`. `desiredDate` no POST é 400. PDF do chamado (`GET /v2/tickets/:id/pdf`) usa o mesmo isolamento; não vira `ticket_attachments`.
 15. Ficha da empresa (`clients`): POST só staff. PATCH staff qualquer id; CLIENT só `id = client_id` (outro tenant 404). Criar/salvar pelo cliente exige nome, e-mail de contato, telefone e WhatsApp. CNPJ unique se preenchido. Consulta CNPJ só no backend (host fixo BrasilAPI).
 16. Chamado: pedido de informação é overlay (`awaiting_reply_from_user_id`), não etapa. Staff POST `messages` kind=request; CLIENT kind=reply (ignora `waitForUserId`). Destinatário só CLIENT do mesmo tenant/projeto. Outro tenant 404. `closed` 409. WaitFor de outro tenant 400.
 17. Cofre `.env` só `admin`. MANAGER/CLIENT → 403. GET lista só `hasContent`/`updatedAt`. Conteúdo só no POST reveal. URL de acesso só http(s).
@@ -419,6 +423,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - [ ] Chamados: cliente abre bug ou Outra coisa; admin avança etapas; cliente confirma; outro tenant 404; CLIENT POST `feature` 403
 - [ ] Chamados: fila sem encerrados; Concluídos com De/Até lista só o período; `stage=closed` sem datas 400; CLIENT B não vê o arquivo de A
 - [ ] Chamado: abrir sem imagem; anexar PNG; SVG/PDF 400; outro tenant 404 no download; Implementação sem Prazo desejado
+- [ ] Card expandido (admin, cliente, Concluídos): **Baixar PDF**; outro tenant 404; sem sessão 401; PDF contém rótulos do form
 - [ ] Chamado intacto: autor (cliente ou admin) vê **Editar** e grava; outro usuário 403; após Produção ou Reabrir some o botão (API 409)
 - [ ] Chamado `resolved` (cliente): Confirmar `accent`/`lg`; Ainda não está ok `danger`/`lg`; form com subtítulo vermelho; Reabrir disabled sem nota
 - [ ] Card compacto expande no clique; um aberto por vez
@@ -456,7 +461,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - Consulta CNPJ: backend chama só `https://brasilapi.com.br/api/cnpj/v1/{14 dígitos}`; rate limit; timeout 5s.
 - SQL parametrizado. Sem secrets no frontend / logs.
 - Cookie: HttpOnly, SameSite=Lax, Secure em production.
-- Rate limit login/forgot/reset, `POST /v2/users/:id/password` (staff, 10/15 min), POST de chamado e POST de imagem no chamado (CLIENT, 10/hora e 20/hora), PATCH content de chamado (CLIENT, 10/hora), POST mensagem de chamado (CLIENT, 30/hora), subscribe de push e reveal de senha/`.env` (30/min).
+- Rate limit login/forgot/reset, `POST /v2/users/:id/password` (staff, 10/15 min), POST de chamado e POST de imagem no chamado (CLIENT, 10/hora e 20/hora), PATCH content de chamado (CLIENT, 10/hora), POST mensagem de chamado (CLIENT, 30/hora), GET PDF do chamado (CLIENT, 30/min), subscribe de push e reveal de senha/`.env` (30/min).
 - SSE: cookie de sessão; payload sem PII; isolamento por `client_id` no servidor.
 - Web Push: endpoint https (localhost http ok); subscription amarrada ao usuário da sessão. Payload `href` só path relativo (API + SW).
 - Uploads: extensão/MIME allowlist + magic bytes nas imagens de chamado, nome armazenado UUID, path traversal bloqueado. JSON da API até 12 MB.
@@ -467,7 +472,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 
 Web em desenvolvimento: um processo Next em **http://localhost:3000** (`next dev --port 3000`, webpack). Feche extras em 3001–3005. API em **http://localhost:4000** (um processo). `npm run dev` na raiz sobe os dois.
 
-Produção VPS (Hostinger, **somente adicionar**): pasta `/opt/avadesk`, clone de [https://github.com/Trindadelucas0/avadesk.git](https://github.com/Trindadelucas0/avadesk.git). Web `127.0.0.1:3105`, API `HOST=127.0.0.1` `PORT=4105`, Postgres container `avadesk-pg` em `127.0.0.1:5436`. Units `avadesk-web` / `avadesk-api`. Cloudflare Public Hostname novo → HTTP `127.0.0.1:3105`. Depois `WEB_ORIGIN=https://SEU-SUBDOMINIO`. Passo a passo: **[docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md)**. Não reutilizar 3000/4000 nem parar serviços alheios.
+Produção VPS (Hostinger, **somente adicionar**): pasta `/opt/avadesk`, clone de [https://github.com/Trindadelucas0/avadesk.git](https://github.com/Trindadelucas0/avadesk.git). Web `127.0.0.1:3105`, API `HOST=127.0.0.1` `PORT=4105`, Postgres container `avadesk-pg` em `127.0.0.1:5436`. Units `avadesk-web` / `avadesk-api`. Cloudflare Public Hostname novo → HTTP `127.0.0.1:3105`. Depois `WEB_ORIGIN=https://SEU-SUBDOMINIO`. Passo a passo: **[docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md)**. Atualizar: [`deploy/ATUALIZAR-VPS.txt`](deploy/ATUALIZAR-VPS.txt) ou `bash /opt/avadesk/deploy/avadesk-update.sh` — **não** rerodar `avadesk-deploy.sh` (reescreve `.env`). Não reutilizar 3000/4000 nem parar serviços alheios.
 
 Rotas legado Express `/auth` `/projects` `/updates` `/hub` ainda existem (ops/migrate). Next `POST /api/hub/login` encaminha para `/v2/auth/login`; `GET /api/hub/state` encaminha para `/v2/bootstrap` (compat PWA). A UI nova usa `/api/v2`. V1 `/projects` não devolve `access_password`.
 
