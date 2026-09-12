@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { PageHeader, PageSkeleton, ThemePicker } from "@/components/hub";
+import { PushAlertsButton } from "@/components/pwa-register";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -70,12 +71,14 @@ export default function ClientSettingsPage() {
         </div>
       </section>
 
-      <section className="hub-surface p-5 text-sm text-[var(--text-secondary)]">
+      <section className="hub-surface space-y-3 p-5 text-sm text-[var(--text-secondary)]">
         <h2 className="text-sm font-medium text-[var(--text-primary)]">Instalar como app (PWA)</h2>
-        <p className="mt-2">
+        <p>
           No Chrome ou Edge, abra o menu do navegador e escolha &quot;Instalar aplicativo&quot; ou
-          &quot;Adicionar à tela inicial&quot; para acesso rápido à Avadesk.
+          &quot;Adicionar à tela inicial&quot;. No iPhone: Compartilhar → Adicionar à Tela de Início
+          e abra pelo ícone (obrigatório para alerta na tela com o app fechado).
         </p>
+        <PushAlertsButton />
       </section>
 
       <Button

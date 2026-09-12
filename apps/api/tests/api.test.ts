@@ -10,6 +10,7 @@ import { pool, query } from "../src/lib/db.js";
 import { env } from "../src/lib/env.js";
 import { encryptSecret, hashToken } from "../src/lib/crypto-secret.js";
 import { isSafePushHref, sanitizePushHref } from "../src/lib/push-href.js";
+import { WEB_PUSH_SEND_OPTIONS } from "../src/lib/push.js";
 import { assertSafeTestDatabaseUrl } from "../src/lib/test-database.js";
 import { shouldReceiveLive } from "../src/lib/live.js";
 
@@ -175,6 +176,8 @@ describe("API health", () => {
     const res = await request(app).get("/health");
     assert.equal(res.status, 200);
     assert.equal(res.body.ok, true);
+    assert.equal(typeof res.body.email, "boolean");
+    assert.equal(typeof res.body.push, "boolean");
   });
 });
 
@@ -564,7 +567,7 @@ describe("V2 tickets", { skip: !postgresReady }, () => {
     assert.equal(confirm.status, 404);
   });
 
-  it("CLIENT downloads ticket PDF; other tenant 404; unauthenticated 401", async () => {
+  it("staff downloads ticket PDF; CLIENT 404; other tenant 404; unauthenticated 401", async () => {
     const created = await request(app)
       .post("/v2/tickets")
       .set("Cookie", clientCookie)
@@ -577,7 +580,7 @@ describe("V2 tickets", { skip: !postgresReady }, () => {
     assert.equal(created.status, 201);
     const id = created.body.ticket.id;
 
-    const pdf = await request(app).get(`/v2/tickets/${id}/pdf`).set("Cookie", clientCookie);
+    const pdf = await request(app).get(`/v2/tickets/${id}/pdf`).set("Cookie", adminCookie);
     assert.equal(pdf.status, 200);
     assert.match(String(pdf.headers["content-type"]), /application\/pdf/);
     assert.match(String(pdf.headers["content-disposition"]), /attachment/);
@@ -586,13 +589,17 @@ describe("V2 tickets", { skip: !postgresReady }, () => {
     assert.ok(body.length > 80);
     assert.equal(body.subarray(0, 4).toString(), "%PDF");
 
+    const owner = await request(app).get(`/v2/tickets/${id}/pdf`).set("Cookie", clientCookie);
+    assert.equal(owner.status, 404);
+    assert.notEqual(String(owner.headers["content-type"] ?? ""), "application/pdf");
+
     const other = await request(app).get(`/v2/tickets/${id}/pdf`).set("Cookie", clientBCookie);
     assert.equal(other.status, 404);
 
     const anon = await request(app).get(`/v2/tickets/${id}/pdf`);
     assert.equal(anon.status, 401);
 
-    const bad = await request(app).get("/v2/tickets/not-a-uuid/pdf").set("Cookie", clientCookie);
+    const bad = await request(app).get("/v2/tickets/not-a-uuid/pdf").set("Cookie", adminCookie);
     assert.equal(bad.status, 404);
   });
 
@@ -1438,6 +1445,13 @@ describe("Live hub HTTP", { skip: !postgresReady }, () => {
     );
     assert.ok(outbox.rows.some((r) => r.to_email === "cliente@acme.com"));
     assert.ok(!outbox.rows.some((r) => r.to_email === "cliente.b@northwind.com"));
+  });
+});
+
+describe("Web Push send options", () => {
+  it("uses high urgency so the phone can show the alert on the lock screen", () => {
+    assert.equal(WEB_PUSH_SEND_OPTIONS.urgency, "high");
+    assert.ok(WEB_PUSH_SEND_OPTIONS.TTL >= 60);
   });
 });
 

@@ -1,4 +1,4 @@
-const CACHE = "avadesk-shell-v5";
+const CACHE = "avadesk-shell-v6";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -83,24 +83,52 @@ function appendPushOpenQuery(href, payload) {
   return url.pathname + url.search + url.hash;
 }
 
-self.addEventListener("push", (event) => {
+async function handlePush(event) {
   let data = { title: "Avadesk", body: "Nova atualização", href: "/", id: "" };
   try {
-    data = event.data ? event.data.json() : data;
+    if (event.data) {
+      const parsed = event.data.json();
+      if (parsed && typeof parsed === "object") data = { ...data, ...parsed };
+    }
   } catch {
-    /* ignore */
+    try {
+      const text = event.data ? event.data.text() : "";
+      if (text) data.body = String(text).slice(0, 500);
+    } catch {
+      /* ignore */
+    }
   }
   const title = data.title || "Avadesk";
-  const body = data.body || "";
+  const body = data.body || "Nova atualização";
   const href = sanitizePushHref(data.href || "/");
   const id = data.id || "";
-  event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: "/icons/icon-192.png",
-      data: { href, title, body, id },
-    })
-  );
+  const payload = { href, title, body, id };
+  const ua = self.navigator && self.navigator.userAgent ? self.navigator.userAgent : "";
+  const ios = /iPad|iPhone|iPod/i.test(ua);
+  const base = {
+    body,
+    icon: "/icons/icon-192.png",
+    data: payload,
+  };
+  const full = {
+    ...base,
+    badge: "/icons/icon-192.png",
+    vibrate: [200, 100, 200],
+    tag: id ? String(id).slice(0, 64) : "avadesk-push",
+    renotify: true,
+    requireInteraction: true,
+    silent: false,
+    timestamp: Date.now(),
+  };
+  try {
+    await self.registration.showNotification(title, ios ? base : full);
+  } catch {
+    await self.registration.showNotification(title, { body, data: payload });
+  }
+}
+
+self.addEventListener("push", (event) => {
+  event.waitUntil(handlePush(event));
 });
 
 self.addEventListener("notificationclick", (event) => {

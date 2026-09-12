@@ -45,7 +45,7 @@ Esqueci a senha: `/forgot-password` envia um e-mail com visual Avadesk (se o e-m
 
 Quando o admin cria o seu usuário, chega um e-mail de **boas-vindas** (obrigado, como entrar, chamados). A senha temporária **não** vem no e-mail — só no diálogo do admin.
 
-Após o login, o navegador pode pedir permissão para **alertas**. No celular, instale a Avadesk na tela inicial (no iPhone isso é necessário para o alerta com o app fechado).
+Após o login, no celular aparece **Ativar alertas**. Toque e aceite. Sem isso o aviso fica só no sino. No iPhone: Compartilhar → Adicionar à Tela de Início, abra pelo ícone (iOS 16.4+) e então ative. Também dá para ativar em **Configurações**.
 
 A tela de login **não mostra** e-mail nem senha de exemplo. O cartão usa o título **Acesse sua conta**; a marca Avadesk fica no rodapé do card.
 
@@ -127,7 +127,7 @@ No modal:
 
 1. Menu **Chamados** (`/admin/chamados`) ou o bloco no projeto.
 2. **Abrir chamado** — escolha projeto, tipo (Bug, Implementação, Funcionalidade nova, Rotina ou Outra coisa) e origem **Relato do cliente** se veio de WhatsApp/reunião. Imagens (print) são opcionais — PNG, JPG ou WebP, até 4 arquivos.
-3. Expanda o card para ler o contexto (e as imagens, se houver). Use **Baixar PDF** para levar o chamado ao Cursor (texto dos campos, histórico e conversa; prints ficam só como nomes). Se **você** abriu o chamado e ele ainda não saiu de Correção (ninguém avançou a etapa), use **Editar** para corrigir tipo, título e campos. Depois que a etapa andar — ou se o chamado for reaberto — o Editar some; o PDF continua.
+3. Expanda o card para ler o contexto (e as imagens, se houver). Use **Baixar PDF** (só o time, no `/admin/chamados`) para levar o chamado ao Cursor (texto dos campos, histórico e conversa; prints ficam só como nomes). O cliente não vê esse botão. Se **você** abriu o chamado e ele ainda não saiu de Correção (ninguém avançou a etapa), use **Editar** para corrigir tipo, título e campos. Depois que a etapa andar — ou se o chamado for reaberto — o Editar some; o PDF continua disponível para o time.
 4. Avance **Correção → Produção → Resolvido** (um passo por vez), arrastando ou pelos botões. A etapa atual gira no card do cliente; as feitas ficam verdes. Cada avanço envia **e-mail + notificação** para o **e-mail de login** do usuário CLIENT da empresa (e alerta no celular se o cliente autorizou). Se o cliente estiver com o portal aberto, o card atualiza **na hora**, sem ele precisar recarregar.
 5. Quando estiver em Resolvido, o cliente confirma. Você **não** fecha no lugar dele. O card some da fila; o histórico fica em **Concluídos**.
 6. Se faltar dado (print, CNPJ, acesso), expanda o card, escreva em **Pedir informação ao cliente** e envie. O card ganha o selo **Aguardando resposta [nome]**. Quando o cliente responder, o selo some e chega aviso para o time. Isso **não** é a coluna Aguardando cliente (Resolvido).
@@ -237,7 +237,7 @@ Quando há projeto:
 
 - Menu **Chamados** ou no detalhe do projeto: **Abrir chamado**.
 - Escolha **Bug** (algo quebrou) ou **Outra coisa** (você dá o nome e descreve). Implementação, funcionalidade nova e rotina só o time abre. Não há prazo desejado. Se quiser, anexe prints (opcional).
-- O card fica pequeno (título + etapas). Toque para ver o relato completo e as imagens. **Baixar PDF** gera o texto da demanda para colar no Cursor (aberto ou em Concluídos).
+- O card fica pequeno (título + etapas). Toque para ver o relato completo e as imagens.
 - Se **você** abriu o chamado e o time ainda não avançou a etapa, aparece **Editar**. Depois que for para Produção (ou for reaberto), não dá mais para mudar o relato.
 - Etapa atual: ícone girando. Etapas feitas e Resolvido: V verde.
 - Quando o time pedir mais informação, o card sobe na lista com o selo **Aguardando resposta [seu nome]**. Abra, leia a conversa e use **Enviar resposta**.
@@ -265,13 +265,14 @@ Quando há projeto:
 - `/client/notifications` — avisos (ex.: novo update). Clique na lista abre o link daquele aviso (sem popup).
 - Marque como lidas na própria tela.
 - Se o celular mostrar um alerta da Avadesk, o toque abre o app na tela certa **e** um diálogo no meio da tela com o texto. Use **Fechar** para continuar.
+- Se o aviso só aparece no sino e não na tela do telefone: abra o app no aparelho → **Ativar alertas** (ou Configurações). iPhone só recebe com o ícone na tela inicial.
 
 ### 4.8 Mobile / PWA
 
 - Layout client tem navegação inferior no mobile.
 - O botão **Menu** no header também abre a lista completa (Projetos, Chamados, Updates, Arquivos, Acesso, etc.).
-- Em **Configurações** (`/client/settings`) há opção de **instalar como app (PWA)** quando o navegador oferecer.
-- Manifest + service worker (`avadesk-shell-v5`) cobrem shell offline básico (não cacheiam página 404). Depois de atualizar o app, o toque no alerta do sistema passa a trazer o texto no centro da tela.
+- Em **Configurações** (`/client/settings`) há **Ativar alertas na tela do celular** e o texto para instalar como app (PWA).
+- Manifest + service worker (`avadesk-shell-v6`) cobrem shell offline básico (não cacheiam página 404). O alerta do sistema usa urgência alta para aparecer na tela bloqueada.
 
 ### 4.9 Perfil
 
@@ -336,7 +337,8 @@ Persistência: Postgres relacional em `DATABASE_URL` (`localhost:5434/nexus`). `
 | Cliente cai no hub sem cadastro | Recarregue; `/client/*` redireciona para `/client/onboarding` até concluir. |
 | Senha temporária não funciona depois do cadastro | Esperado — use a senha nova definida no onboarding. |
 | Não consigo convidar CLIENT | Crie um **cliente** em `/admin/clients` antes. |
-| E-mail de chamado não chega | O aviso vai para o **e-mail de login** do usuário CLIENT (`/admin/users`), não para o campo Contato da empresa. Sem `RESEND_API_KEY` fica só no outbox. Sandbox Resend só entrega para o e-mail da conta Resend. |
+| E-mail de chamado não chega | O aviso vai para o **e-mail de login** do usuário CLIENT (`/admin/users`), não para o campo Contato da empresa. Sem `RESEND_API_KEY` no `.env` da VPS o outbox marca `logged` e **nada sai**. Sandbox `onboarding@resend.dev` só entrega para o e-mail da conta Resend. |
+| iPhone não mostra alerta na tela | Abra pelo **ícone da Tela de Início** (não pela aba do Safari), iOS 16.4+. Toque em **Ativar alertas**. Se o ícone foi adicionado antes, apague e adicione de novo. Sem chaves VAPID no servidor o push não inscreve. |
 | Cliente não vê Resolvido na hora | Confira se ele está logado na mesma empresa. Recarregar ainda funciona; o portal tenta atualizar sozinho. |
 | Quick Update sem projetos | Crie ao menos um projeto antes. |
 | Porta 3000 ocupada / build estranho | Pare o `next dev` antigo ou use `NEXT_DIST_DIR=.next-build` no build. |

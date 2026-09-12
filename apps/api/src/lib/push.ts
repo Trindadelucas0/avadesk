@@ -13,6 +13,12 @@ function ensureVapid(): boolean {
   return true;
 }
 
+/** High urgency wakes Android/iOS instead of waiting for Doze / idle. */
+export const WEB_PUSH_SEND_OPTIONS = {
+  TTL: 24 * 60 * 60,
+  urgency: "high" as const,
+};
+
 export function isAllowedPushEndpoint(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -48,7 +54,8 @@ export async function sendWebPush(
           endpoint: row.endpoint,
           keys: { p256dh: row.p256dh, auth: row.auth },
         },
-        json
+        json,
+        WEB_PUSH_SEND_OPTIONS
       );
     } catch (err) {
       const status =

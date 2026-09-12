@@ -2,8 +2,8 @@
 
 | Item | Valor |
 |------|--------|
-| Versão do sistema | 3.15.3 — Chamados |
-| Última atualização | 12/09/2026 (TXT de atualização da VPS) |
+| Versão do sistema | 3.15.6 — Chamados |
+| Última atualização | 12/09/2026 (PDF do chamado só staff; cliente 404) |
 | Fonte oficial | Este arquivo |
 | Guia de uso | [docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md) |
 | PRD / wireframes | [docs/PRD-NEXUS-PORTAL-CLIENTE.md](docs/PRD-NEXUS-PORTAL-CLIENTE.md) |
@@ -26,12 +26,15 @@ Tutorial: **[docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md)**.
 | Banco | PostgreSQL via `DATABASE_URL` (`localhost:5434/nexus`). Testes: `DATABASE_URL_TEST` (`nexus_test`). Esta app **não** usa `DB_HOST` / `DB_PORT=5432` / `JWT_SECRET` |
 | Arquivos | Disco privado `apps/api/storage/` + download autenticado |
 | E-mail | `email_outbox` + Resend. Templates Avadesk: reset, update, **boas-vindas** (sem senha), **chamado por etapa**. Sem key → `logged`. Sandbox `onboarding@resend.dev` só entrega para o e-mail da conta Resend |
-| PWA | `manifest.webmanifest` + `public/sw.js` (`avadesk-shell-v5`). Navegações HTML sempre na rede (não cacheia 404). Assets só entram no cache se `status < 400`. Web Push VAPID (`push_subscriptions`). Toque no alerta abre o href e o diálogo central (`CenterNotice`). iOS: app na tela inicial (16.4+) |
+| PWA | `manifest.webmanifest` (`id`/`scope`, ícones `any` e `maskable` separados) + `public/sw.js` (`avadesk-shell-v6`). Meta `apple-mobile-web-app-capable`. Web Push VAPID obrigatório no `.env` da API. Sem VAPID: `GET /health` `push: false` e zero `push_subscriptions`. iOS 16.4+: ícone na tela inicial + toque em **Ativar alertas**. |
 
 ### 2.1 Histórico de versões
 
 | Versão | Nome | Mudança |
 |--------|------|---------|
+| 3.15.6 | Chamados | **Baixar PDF** só no card do staff (`mode=admin`). `GET /v2/tickets/:id/pdf`: CLIENT 404 (não revela o recurso); staff 200; outro tenant 404; sem sessão 401. Portal do cliente sem o botão. |
+| 3.15.5 | Chamados | iOS: meta `apple-mobile-web-app-capable` (Next 15 só emitia `mobile-web-app-capable`). Manifest com `id`/`scope` e ícones `any` separados de `maskable`. SW iOS sem vibrate. `GET /health` diz se e-mail e push estão configurados. Sem `RESEND_API_KEY` o outbox fica `logged` (não envia). Sem VAPID o Web Push não inscreve. |
+| 3.15.4 | Chamados | Alerta PWA passa a aparecer na tela do celular: envio `urgency=high`, `showNotification` com vibrate/renotify, permissão só com toque em **Ativar alertas**, SW `avadesk-shell-v6` sem cache HTTP. iOS continua exigindo ícone na tela inicial (16.4+). |
 | 3.15.3 | Chamados | Atualizar sozinho: [`ATUALIZAR-VPS.txt`](ATUALIZAR-VPS.txt) (`git push` no PC + bloco na VPS). Público `https://suporte.avadesk.com.br`. Não usar `avadesk-deploy.sh` no dia a dia (reescreve `.env`). Sem mudança de telas ou regras. |
 | 3.15.2 | Chamados | Card expandido: **Baixar PDF** (admin e cliente, aberto ou concluído). `GET /v2/tickets/:id/pdf` (texto + nomes das imagens; sem bytes). Outro tenant 404. PDF **não** entra em anexo do chamado. |
 | 3.15.1 | Chamados | No portal, o cliente só abre **Bug** ou **Outra coisa** (nome 2–60 + detalhes; foto opcional). Staff continua com Implementação / Funcionalidade / Rotina. `POST`/`PATCH content`: CLIENT com outro tipo → 403. Tipo `other` no CHECK (`011_ticket_type_other.sql`). Tickets antigos permanecem. |
@@ -145,7 +148,8 @@ Seed: `npm run seed` **não apaga** clientes, usuários, projetos nem updates. S
 | Live SSE | `apps/api/src/lib/live.ts`, `apps/api/src/v2/events.ts` (`GET /v2/events`) |
 | Sync UI | `apps/web/src/lib/hub-sync.ts` (EventSource + poll 30s) |
 | Web Push | `apps/api/src/lib/push.ts`, `apps/api/src/v2/push.ts`, `apps/api/src/lib/push-href.ts` |
-| Popup toque PWA | `apps/web/src/components/hub/push-notice-host.tsx`, `apps/web/public/sw.js` (`avadesk-shell-v5`) |
+| Popup toque PWA | `apps/web/src/components/hub/push-notice-host.tsx`, `apps/web/public/sw.js` (`avadesk-shell-v6`) |
+| Inscrição push | `apps/web/src/lib/web-push-subscribe.ts`, `apps/web/src/components/pwa-register.tsx` |
 | Dev web | `apps/web/package.json` → `next dev --port 3000` (sem Turbopack; porta extra falha em vez de 3001+) |
 | Migrate hub_state | `apps/api/src/scripts/migrate-hub-state.ts` |
 | Tokens dos temas | `apps/web/src/app/globals.css` (`:root` / `[data-theme="light"]` e `[data-theme="dark"]`) |
@@ -300,7 +304,7 @@ Lista em `/client/chamados`. O cliente só escolhe **Bug** ou **Outra coisa** (�
 | Concluídos | De / Até | Arquivo dos encerrados | Sim (na consulta) | Admin ou cliente | date | `client_confirmed_at` | `GET /v2/tickets?stage=closed&from=&to=` | Sem datas = 400; intervalo máx. 366 dias; limite 100 | `closed-tickets-panel.tsx` |
 | Card | Etapas | fix / production / resolved | — | Admin move | PATCH | `tickets.stage` | Spinner na atual; V verde nas feitas e em Resolvido; botões no expandido | Não pula etapa; não vai a `closed` | `ticket-card.tsx` |
 | Card expandido | Editar | Corrige tipo, título e campos | Condicional | Quem abriu | PATCH content | `tickets.type` `title` `fields` | Botão só se intacto; form no card | Não-autor 403; outro tenant 404; já iniciado/reaberto 409 | `PATCH /v2/tickets/:id/content` |
-| Card expandido | Baixar PDF | Demanda para o Cursor | Não | Admin ou cliente do chamado | GET | arquivo gerado | Texto com rótulos do form + histórico + conversa + nomes das imagens | Outro tenant 404; sem sessão 401; 30/min (CLIENT); não é anexo | `GET /v2/tickets/:id/pdf` |
+| Card expandido | Baixar PDF | Demanda para o Cursor | Não | Só staff (admin/manager) | GET | arquivo gerado | Texto com rótulos do form + histórico + conversa + nomes das imagens | CLIENT 404 (sem botão); outro tenant 404; sem sessão 401; 30/min (não-staff); não é anexo | `GET /v2/tickets/:id/pdf` |
 | Aviso | E-mail + in-app + push | Copy da etapa (Produção, Resolvido, etc.) | — | Sistema | `notifyUsers` | outbox + `notifications` + Web Push | Omite o ator; falha de envio não desfaz o PATCH | Tenant / staff | `apps/api/src/lib/notify.ts` |
 | Card expandido | Confirmar | Cliente diz que está ok | Condicional | CLIENT | POST confirm | `stage=closed` | `accent` + `lg`; só se `resolved` | Admin 403; outro tenant 404 | `POST /v2/tickets/:id/confirm` |
 | Card expandido | Ainda não está ok | Abre o formulário de reabertura | Condicional | CLIENT | clique | formulário no card | `danger` + `lg`; só se `resolved` | Admin não vê | `ticket-card.tsx` |
@@ -348,10 +352,15 @@ Lista in-app em `/client/notifications` e `/admin/notifications`: o item é um l
 
 Toque no alerta do sistema/PWA: o service worker abre o `href` relativo e o `PushNoticeHost` mostra `CenterNotice` no centro (título + corpo + Fechar). App fechado, em segundo plano ou já aberto. Query `fromPush`/`pt`/`pb` é limpa depois. Clique na lista **não** dispara esse overlay.
 
+O envio Web Push usa `TTL` 24h e `urgency: high` para o celular acordar e mostrar o banner na tela (não só no sino in-app). O `showNotification` inclui `vibrate`, `renotify` e `requireInteraction`.
+
+Permissão: depois do login aparece o cartão **Ativar alertas**. O pedido ao sistema só roda no toque (iOS recusa pedido automático). Se a permissão já foi dada, o app reinscreve sozinho. iPhone: é preciso abrir pelo ícone da tela inicial (Safari na aba não recebe push). Em `/client/settings` o botão **Ativar alertas na tela do celular** faz o mesmo gesto.
+
 `POST /v2/notifications` (staff) e updates visíveis ao cliente também enviam Web Push, além de `notifyUsers` nos chamados.
 
 | Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
+| Ativar | Botão **Ativar alertas** | Pedido de permissão + `push_subscriptions` | Condicional | Destinatário | gesto do usuário | `POST /v2/push/subscribe` | Só no toque; iOS precisa do PWA na tela inicial | Sem gesto → iOS nega; Android 13 pode silenciar | `apps/web/src/lib/web-push-subscribe.ts` |
 | Alerta SO | Título / corpo | Texto do aviso | — | Sistema ou admin | payload Web Push | `CenterNotice` | Só no toque do alerta | `href` só path `/…`, sem `//` nem URL absoluta | `apps/web/public/sw.js` |
 | Destino | href | Tela aberta atrás do popup | Sim (default `/client`) | Admin ou sistema | `notifications.href` | rota interna | SW sanitiza; API rejeita externo | Open redirect → `/` ou `/admin`/`/client` | `apps/api/src/lib/push-href.ts` |
 | Lista | Item | Aviso persistido | — | Destinatário | bootstrap | `Link` `item.href` | Marca lida no clique | Sem overlay | `apps/web/src/components/hub/cards.tsx` |
@@ -386,8 +395,8 @@ O accent azul continua sendo marca/ação (CTA, foco, item ativo do menu, selo d
 10. Esqueci senha: mesma resposta se o e-mail existir ou não. HTML escapado. Token 1h no servidor (`expires_at > NOW()`); pedido novo invalida tokens anteriores não usados. Boas-vindas **sem senha** no e-mail. Push: `user_id` só da sessão; VAPID private só no backend.
 11. Usuário: `admin`/`manager` exigem `client_id` nulo; `client` exige empresa. `GET/PATCH /v2/users/:id` e `POST /v2/users/:id/password` só para staff; CLIENT 403. PATCH persiste e-mail único. Promover cliente a staff zera a empresa. Rebaixar staff a cliente sem `clientId` → 400. Senha definida pelo admin não vai no e-mail; sessão HMAC antiga não é revogada até expirar ou logout; `active=false` bloqueia o próximo request.
 12. Live: `GET /v2/events` exige sessão. O evento só tem `{ type, reason }` (sem PII). CLIENT só recebe se o `client_id` da sessão for o do recurso; staff recebe todos; o ator da mutação não recebe. Poll 30s cobre SSE caído. Sem Redis: um processo Node.
-13. Web Push `href` só path relativo (`/`…, sem `//` nem protocolo). `POST /v2/notifications` rejeita URL absoluta (400). Toque no alerta abre popup central; clique na lista do sino não.
-14. Chamado: imagens opcionais só na abertura (PNG/JPEG/WebP, magic bytes, máx. 4 × 2 MB). Download autenticado; CLIENT de outro tenant 404. Não entram em `files`. `desiredDate` no POST é 400. PDF do chamado (`GET /v2/tickets/:id/pdf`) usa o mesmo isolamento; não vira `ticket_attachments`.
+13. Web Push `href` só path relativo (`/`…, sem `//` nem protocolo). `POST /v2/notifications` rejeita URL absoluta (400). Envio com `urgency: high`. Toque no alerta abre popup central; clique na lista do sino não. Permissão de alerta só após gesto (**Ativar alertas**).
+14. Chamado: imagens opcionais só na abertura (PNG/JPEG/WebP, magic bytes, máx. 4 × 2 MB). Download autenticado; CLIENT de outro tenant 404. Não entram em `files`. `desiredDate` no POST é 400. PDF do chamado (`GET /v2/tickets/:id/pdf`) só staff (`isStaff`); CLIENT 404; outro tenant 404; não vira `ticket_attachments`.
 15. Ficha da empresa (`clients`): POST só staff. PATCH staff qualquer id; CLIENT só `id = client_id` (outro tenant 404). Criar/salvar pelo cliente exige nome, e-mail de contato, telefone e WhatsApp. CNPJ unique se preenchido. Consulta CNPJ só no backend (host fixo BrasilAPI).
 16. Chamado: pedido de informação é overlay (`awaiting_reply_from_user_id`), não etapa. Staff POST `messages` kind=request; CLIENT kind=reply (ignora `waitForUserId`). Destinatário só CLIENT do mesmo tenant/projeto. Outro tenant 404. `closed` 409. WaitFor de outro tenant 400.
 17. Cofre `.env` só `admin`. MANAGER/CLIENT → 403. GET lista só `hasContent`/`updatedAt`. Conteúdo só no POST reveal. URL de acesso só http(s).
@@ -403,7 +412,7 @@ Banco local: `DATABASE_URL=postgresql://postgres:postgres@localhost:5434/nexus` 
 
 `npm test` **não** usa o banco da tela. Aponta para `DATABASE_URL_TEST` (`.../nexus_test`), cria o database se faltar, aplica migrations e só então faz TRUNCATE + fixture. Se a URL de teste for `nexus` (ou o nome não contiver `test`), o comando aborta.
 
-E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FROM=Avadesk <onboarding@resend.dev>` em teste. Sem a key, o outbox marca `logged`. Recuperar senha: `/login` → Esqueci a senha. Criar usuário dispara boas-vindas. Chamado em Produção (e demais etapas) dispara e-mail + notificação **no e-mail de login** do usuário CLIENT. Com a aba `/client/chamados` aberta, o badge muda na hora (SSE). Após o login o navegador pode pedir permissão de alerta (Web Push). iOS: instalar o PWA na tela inicial (16.4+).
+E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FROM=Avadesk <onboarding@resend.dev>` em teste. Sem a key, o outbox marca `logged`. Recuperar senha: `/login` → Esqueci a senha. Criar usuário dispara boas-vindas. Chamado em Produção (e demais etapas) dispara e-mail + notificação **no e-mail de login** do usuário CLIENT. Com a aba `/client/chamados` aberta, o badge muda na hora (SSE). No celular, toque em **Ativar alertas** (e no iPhone abra pelo ícone da tela inicial, iOS 16.4+). Sem esse toque o aviso fica só no sino.
 
 ## 9. Checklist de validação
 
@@ -423,7 +432,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - [ ] Chamados: cliente abre bug ou Outra coisa; admin avança etapas; cliente confirma; outro tenant 404; CLIENT POST `feature` 403
 - [ ] Chamados: fila sem encerrados; Concluídos com De/Até lista só o período; `stage=closed` sem datas 400; CLIENT B não vê o arquivo de A
 - [ ] Chamado: abrir sem imagem; anexar PNG; SVG/PDF 400; outro tenant 404 no download; Implementação sem Prazo desejado
-- [ ] Card expandido (admin, cliente, Concluídos): **Baixar PDF**; outro tenant 404; sem sessão 401; PDF contém rótulos do form
+- [ ] Card expandido: **Baixar PDF** só no admin (aberto e Concluídos); portal cliente sem botão; CLIENT GET pdf 404; staff 200; outro tenant 404; sem sessão 401; PDF contém rótulos do form
 - [ ] Chamado intacto: autor (cliente ou admin) vê **Editar** e grava; outro usuário 403; após Produção ou Reabrir some o botão (API 409)
 - [ ] Chamado `resolved` (cliente): Confirmar `accent`/`lg`; Ainda não está ok `danger`/`lg`; form com subtítulo vermelho; Reabrir disabled sem nota
 - [ ] Card compacto expande no clique; um aberto por vez
@@ -440,7 +449,9 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - [ ] Ficha: salvar nome/e-mail; e-mail duplicado 400; definir senha 8+ e login com a senha nova
 - [ ] Switch Ativo em `/admin/users` em um CLIENT: 200, empresa permanece; CLIENT não GET/PATCH `/v2/users` nem POST senha
 - [ ] Chamado → Produção: in-app “em produção” + e-mail; ator não recebe
-- [ ] Login: permissão de notificação grava `push_subscriptions` (`POST /v2/push/subscribe`)
+- [ ] `GET /health` → `ok`; `email` e `push` true só com `RESEND_API_KEY` e VAPID no `.env`
+- [ ] Login: cartão **Ativar alertas** (toque) grava `push_subscriptions` (`POST /v2/push/subscribe`); iOS na aba do Safari mostra o aviso de tela inicial, não o pedido de permissão
+- [ ] App fechado no celular: avanço de chamado/update gera banner na tela (não só o sino); toque abre href + `CenterNotice`
 - [ ] Home `/admin`: 4 KPIs = SQL; CLIENT 403 em `GET /v2/admin/overview`; deep link `?stage=` nos chamados
 - [ ] Admin salva URL/usuário/senha em `/admin/access`; cliente revela a mesma senha; lista sem plaintext
 - [ ] Ambientes: só ADMIN; MANAGER/CLIENT 403 em `/v2/projects/:id/env`; GET sem conteúdo; Copiar após reveal
@@ -461,9 +472,9 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - Consulta CNPJ: backend chama só `https://brasilapi.com.br/api/cnpj/v1/{14 dígitos}`; rate limit; timeout 5s.
 - SQL parametrizado. Sem secrets no frontend / logs.
 - Cookie: HttpOnly, SameSite=Lax, Secure em production.
-- Rate limit login/forgot/reset, `POST /v2/users/:id/password` (staff, 10/15 min), POST de chamado e POST de imagem no chamado (CLIENT, 10/hora e 20/hora), PATCH content de chamado (CLIENT, 10/hora), POST mensagem de chamado (CLIENT, 30/hora), GET PDF do chamado (CLIENT, 30/min), subscribe de push e reveal de senha/`.env` (30/min).
+- Rate limit login/forgot/reset, `POST /v2/users/:id/password` (staff, 10/15 min), POST de chamado e POST de imagem no chamado (CLIENT, 10/hora e 20/hora), PATCH content de chamado (CLIENT, 10/hora), POST mensagem de chamado (CLIENT, 30/hora), GET PDF do chamado (não-staff 30/min, depois 404), subscribe de push e reveal de senha/`.env` (30/min).
 - SSE: cookie de sessão; payload sem PII; isolamento por `client_id` no servidor.
-- Web Push: endpoint https (localhost http ok); subscription amarrada ao usuário da sessão. Payload `href` só path relativo (API + SW).
+- Web Push: endpoint https (localhost http ok); subscription amarrada ao usuário da sessão. Payload `href` só path relativo (API + SW). Envio com `urgency: high`. `sw.js` com `Cache-Control: no-store`.
 - Uploads: extensão/MIME allowlist + magic bytes nas imagens de chamado, nome armazenado UUID, path traversal bloqueado. JSON da API até 12 MB.
 
 ## 11. Deploy / ambiente
@@ -473,6 +484,8 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 Web em desenvolvimento: um processo Next em **http://localhost:3000** (`next dev --port 3000`, webpack). Feche extras em 3001–3005. API em **http://localhost:4000** (um processo). `npm run dev` na raiz sobe os dois.
 
 Produção VPS (Hostinger, **somente adicionar**): pasta `/opt/avadesk`, clone de [https://github.com/Trindadelucas0/avadesk.git](https://github.com/Trindadelucas0/avadesk.git). Público: **https://suporte.avadesk.com.br** (Cloudflare hostname `*` → HTTP `127.0.0.1:3105`). `WEB_ORIGIN=https://suporte.avadesk.com.br`. Web `127.0.0.1:3105`, API `HOST=127.0.0.1` `PORT=4105`, Postgres `avadesk-pg` em `127.0.0.1:5436`. Atualizar sozinho: **[ATUALIZAR-VPS.txt](ATUALIZAR-VPS.txt)** (passo a passo [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md)). **Não** rerodar `avadesk-deploy.sh` (reescreve `.env`). Não reutilizar 3000/4000 nem parar serviços alheios. `chamados.avadesk.com.br` não existe no DNS.
+
+E-mail e Web Push **não funcionam** se `RESEND_API_KEY` / `VAPID_*` estiverem vazios no `/opt/avadesk/.env` (`GET /health` → `email`/`push` false; outbox `logged`; `push_subscriptions` vazio). `EMAIL_FROM` sandbox `onboarding@resend.dev` só entrega para o e-mail da conta Resend — em produção use domínio verificado no Resend.
 
 Rotas legado Express `/auth` `/projects` `/updates` `/hub` ainda existem (ops/migrate). Next `POST /api/hub/login` encaminha para `/v2/auth/login`; `GET /api/hub/state` encaminha para `/v2/bootstrap` (compat PWA). A UI nova usa `/api/v2`. V1 `/projects` não devolve `access_password`.
 

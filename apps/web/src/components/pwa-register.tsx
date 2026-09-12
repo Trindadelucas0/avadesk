@@ -1,80 +1,48 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, X } from "lucide-react";
+import { Bell, Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { v2 } from "@/lib/v2-client";
 import { useHubStore } from "@/stores/hub-store";
+import {
+  enableWebPushFromUserGesture,
+  subscribeWebPushIfPermitted,
+  type WebPushStatus,
+} from "@/lib/web-push-subscribe";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  const output = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
-  return output;
-}
-
-async function subscribeWebPush(): Promise<void> {
-  if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
-    return;
-  }
-  if (!window.isSecureContext && window.location.hostname !== "localhost") return;
-  try {
-    const vapid = await v2<{ publicKey: string }>("/push/vapid");
-    const publicKey = vapid.publicKey || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
-    if (!publicKey) return;
-    const permission =
-      Notification.permission === "default"
-        ? await Notification.requestPermission()
-        : Notification.permission;
-    if (permission !== "granted") return;
-    const reg = await navigator.serviceWorker.ready;
-    let sub = await reg.pushManager.getSubscription();
-    if (!sub) {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
-      });
-    }
-    const json = sub.toJSON();
-    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return;
-    await v2("/push/subscribe", {
-      method: "POST",
-      json: {
-        endpoint: json.endpoint,
-        keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
-      },
-    });
-  } catch {
-    /* permission denied or unsupported */
-  }
-}
+type PushPrompt = Extract<WebPushStatus, "need-permission" | "need-install" | "denied">;
 
 export function PwaRegister() {
   const session = useHubStore((s) => s.session);
   const hydrated = useHubStore((s) => s.hydrated);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [show, setShow] = useState(false);
+  const [showInstall, setShowInstall] = useState(false);
+  const [pushPrompt, setPushPrompt] = useState<PushPrompt | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
-        /* ignore SW errors in dev */
-      });
+      navigator.serviceWorker
+        .register("/sw.js", { updateViaCache: "none" })
+        .then((reg) => {
+          void reg.update();
+        })
+        .catch(() => {
+          /* ignore SW errors in dev */
+        });
     }
 
     const onBip = (e: Event) => {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
       const dismissed = document.cookie.split("; ").some((p) => p.startsWith("ch_pwa_dismiss="));
-      if (!dismissed) setShow(true);
+      if (!dismissed) setShowInstall(true);
     };
     window.addEventListener("beforeinstallprompt", onBip);
     return () => window.removeEventListener("beforeinstallprompt", onBip);
@@ -82,10 +50,97 @@ export function PwaRegister() {
 
   useEffect(() => {
     if (!hydrated || !session) return;
-    void subscribeWebPush();
+    let cancelled = false;
+    void subscribeWebPushIfPermitted().then((status) => {
+      if (cancelled) return;
+      if (status === "need-permission" || status === "need-install" || status === "denied") {
+        setPushPrompt(status);
+        return;
+      }
+      setPushPrompt(null);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [hydrated, session?.id]);
 
-  if (!show || !deferred) return null;
+  const pushBanner =
+    pushPrompt === "need-permission" ? (
+      <>
+        <p className="text-sm font-medium">Alertas na tela do celular</p>
+        <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+          Toque em Ativar e aceite a permissão. Sem isso o aviso fica só no sino, não na tela
+          bloqueada.
+        </p>
+      </>
+    ) : pushPrompt === "need-install" ? (
+      <>
+        <p className="text-sm font-medium">Instale a Avadesk na tela inicial</p>
+        <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+          No iPhone: Compartilhar → Adicionar à Tela de Início. Abra pelo ícone, entre e toque em
+          Ativar alertas.
+        </p>
+      </>
+    ) : pushPrompt === "denied" ? (
+      <>
+        <p className="text-sm font-medium">Alertas bloqueados neste aparelho</p>
+        <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+          Em Ajustes do celular, permita notificações da Avadesk (ou do Chrome/Safari) e abra o app
+          de novo.
+        </p>
+      </>
+    ) : null;
+
+  if (pushBanner && pushPrompt) {
+    return (
+      <div
+        className="hub-dialog fixed bottom-20 left-4 right-4 z-50 mx-auto flex max-w-md items-start gap-3 rounded-2xl p-4 md:bottom-6"
+        role="dialog"
+        aria-label="Alertas do celular"
+      >
+        <Bell className="mt-0.5 h-5 w-5 shrink-0 text-[var(--accent)]" aria-hidden />
+        <div className="flex-1">
+          {pushBanner}
+          <div className="mt-3 flex gap-2">
+            {pushPrompt === "need-permission" ? (
+              <Button
+                size="sm"
+                variant="accent"
+                disabled={pushBusy}
+                onClick={async () => {
+                  setPushBusy(true);
+                  const status = await enableWebPushFromUserGesture();
+                  setPushBusy(false);
+                  if (status === "ok") {
+                    setPushPrompt(null);
+                    return;
+                  }
+                  if (status === "need-permission" || status === "need-install" || status === "denied") {
+                    setPushPrompt(status);
+                  }
+                }}
+              >
+                Ativar alertas
+              </Button>
+            ) : null}
+            <Button size="sm" variant="ghost" onClick={() => setPushPrompt(null)}>
+              Agora não
+            </Button>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="rounded p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] hub-focus"
+          aria-label="Fechar"
+          onClick={() => setPushPrompt(null)}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+
+  if (!showInstall || !deferred) return null;
 
   return (
     <div
@@ -105,7 +160,7 @@ export function PwaRegister() {
             variant="accent"
             onClick={async () => {
               await deferred.prompt();
-              setShow(false);
+              setShowInstall(false);
               setDeferred(null);
             }}
           >
@@ -116,7 +171,7 @@ export function PwaRegister() {
             variant="ghost"
             onClick={() => {
               document.cookie = "ch_pwa_dismiss=1; path=/; max-age=31536000; SameSite=Lax";
-              setShow(false);
+              setShowInstall(false);
             }}
           >
             Agora não
@@ -127,10 +182,53 @@ export function PwaRegister() {
         type="button"
         className="rounded p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] hub-focus"
         aria-label="Fechar"
-        onClick={() => setShow(false)}
+        onClick={() => setShowInstall(false)}
       >
         <X className="h-4 w-4" />
       </button>
+    </div>
+  );
+}
+
+export function PushAlertsButton() {
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<WebPushStatus | null>(null);
+
+  return (
+    <div className="space-y-2">
+      <Button
+        type="button"
+        variant="accent"
+        className="w-full"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          const next = await enableWebPushFromUserGesture();
+          setBusy(false);
+          setStatus(next);
+        }}
+      >
+        Ativar alertas na tela do celular
+      </Button>
+      {status === "ok" ? (
+        <p className="text-xs text-[var(--text-secondary)]">Alertas ativados neste aparelho.</p>
+      ) : null}
+      {status === "need-install" ? (
+        <p className="text-xs text-[var(--text-secondary)]">
+          No iPhone, adicione à Tela de Início e abra pelo ícone antes de ativar.
+        </p>
+      ) : null}
+      {status === "denied" ? (
+        <p className="text-xs text-[var(--text-secondary)]">
+          Permissão bloqueada. Libere notificações em Ajustes do celular.
+        </p>
+      ) : null}
+      {status === "unavailable" || status === "unsupported" ? (
+        <p className="text-xs text-[var(--text-secondary)]">
+          Este navegador não recebe alerta na tela. Use o app instalado no Chrome (Android) ou o
+          ícone da tela inicial (iPhone 16.4+).
+        </p>
+      ) : null}
     </div>
   );
 }

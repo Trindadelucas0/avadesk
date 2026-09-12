@@ -628,6 +628,7 @@ v2TicketsRouter.get("/:id", requireAuth, async (req, res) => {
 v2TicketsRouter.get("/:id/pdf", requireAuth, pdfLimiter, async (req, res) => {
   const id = uuid.safeParse(req.params.id);
   if (!id.success) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+  if (!isStaff(req.user!)) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
   try {
     const row = await getTicketRow(req.user!, id.data);
     if (!row) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");

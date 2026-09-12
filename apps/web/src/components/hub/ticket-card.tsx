@@ -388,31 +388,35 @@ export function TicketCard({
                   </ul>
                 </div>
               ) : null}
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                {canEdit ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="min-h-11 w-full sm:w-auto"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditing(true);
-                    }}
-                  >
-                    Editar
-                  </Button>
-                ) : null}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="min-h-11 w-full sm:w-auto"
-                  disabled={pdfBusy}
-                  aria-busy={pdfBusy}
-                  onClick={(e) => void downloadPdf(e)}
-                >
-                  {pdfBusy ? "Gerando…" : "Baixar PDF"}
-                </Button>
-              </div>
+              {canEdit || mode === "admin" ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  {canEdit ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-h-11 w-full sm:w-auto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditing(true);
+                      }}
+                    >
+                      Editar
+                    </Button>
+                  ) : null}
+                  {mode === "admin" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-h-11 w-full sm:w-auto"
+                      disabled={pdfBusy}
+                      aria-busy={pdfBusy}
+                      onClick={(e) => void downloadPdf(e)}
+                    >
+                      {pdfBusy ? "Gerando…" : "Baixar PDF"}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </>
           )}
 

@@ -25,7 +25,11 @@ export function createApp() {
   app.use(cookieParser());
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true });
+    res.json({
+      ok: true,
+      email: Boolean(env.resendApiKey),
+      push: Boolean(env.vapidPublicKey && env.vapidPrivateKey),
+    });
   });
 
   app.use("/auth", authRouter);

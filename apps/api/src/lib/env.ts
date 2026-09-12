@@ -67,7 +67,7 @@ export const env = {
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ? clean(process.env.VAPID_PRIVATE_KEY) : "",
   vapidSubject: process.env.VAPID_SUBJECT
     ? clean(process.env.VAPID_SUBJECT)
-    : "mailto:avadesk@localhost",
+    : "mailto:suporte@avadesk.com.br",
 };
 
 /** Safe label for logs (no password). */
