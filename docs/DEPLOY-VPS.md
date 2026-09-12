@@ -14,13 +14,15 @@ Não copiar `.env` do PC. Não usar `scp` como fonte principal.
 
 Já instalado em `/opt/avadesk`. **Não** rode `deploy/avadesk-deploy.sh` de novo: ele reescreve `.env`.
 
-Copiar e colar o bloco em [`deploy/ATUALIZAR-VPS.txt`](../deploy/ATUALIZAR-VPS.txt), ou:
+Playbook no PC: [`ATUALIZAR-VPS.txt`](../ATUALIZAR-VPS.txt) (mesmo texto em [`deploy/ATUALIZAR-VPS.txt`](../deploy/ATUALIZAR-VPS.txt)). Na VPS: `/root/ATUALIZAR-AVADESK.txt` ou:
 
 ```bash
 bash /opt/avadesk/deploy/avadesk-update.sh
 ```
 
-Isso faz `git pull --ff-only`, confirma o container `avadesk-pg` (só `docker start` se estiver parado; **não** recria), `npm ci`, build, migrate, seed (não apaga dados), `pm2 restart` só de `avadesk-api` e `avadesk-web`. Cópia no servidor: `/root/ATUALIZAR-AVADESK.txt`.
+Isso faz `git pull --ff-only`, confirma o container `avadesk-pg` (só `docker start` se estiver parado; **não** recria), `npm ci`, build, migrate, seed (não apaga dados), `pm2 restart` só de `avadesk-api` e `avadesk-web`.
+
+Antes do pull na VPS: `git push origin main` neste PC. Sem push, a VPS não recebe o Cursor.
 
 ## Portas (loopback)
 
@@ -41,10 +43,16 @@ No Zero Trust → Public hostname **novo**:
 - Type: HTTP
 - URL: `127.0.0.1:3105`
 
-Não apagar hostnames existentes. Depois no `/opt/avadesk/.env`:
+Não apagar hostnames existentes. Hostname deste projeto:
+
+- Hostname: `suporte.avadesk.com.br`
+- Path: `*`
+- Origin: `http://127.0.0.1:3105`
+
+No `/opt/avadesk/.env`:
 
 ```env
-WEB_ORIGIN=https://SEU-SUBDOMINIO
+WEB_ORIGIN=https://suporte.avadesk.com.br
 ```
 
 Reiniciar só `avadesk-web` e `avadesk-api`.
