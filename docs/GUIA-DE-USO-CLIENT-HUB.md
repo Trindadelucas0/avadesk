@@ -43,7 +43,7 @@ Após o login, um diálogo no **centro** da tela diz `Olá, {seu primeiro nome}`
 
 Esqueci a senha: `/forgot-password` envia um e-mail com visual Avadesk (se o e-mail existir). O token vale 1 hora e só pode ser usado uma vez; um pedido novo cancela o link anterior. Depois de 1 hora, ou se o token já foi usado, `/reset-password` mostra **Link inválido ou expirado** e o botão **Pedir novo link**. A tela de pedido nunca confirma se o e-mail está cadastrado. Em teste, o remetente `onboarding@resend.dev` só entrega para o e-mail da conta Resend. Sem `RESEND_API_KEY` no servidor, o pedido é só registrado no outbox.
 
-Quando o admin cria o seu usuário, chega um e-mail de **boas-vindas** (obrigado, como entrar, chamados). A senha temporária **não** vem no e-mail — só no diálogo do admin.
+Quando o admin cria o seu usuário, chega um e-mail de **boas-vindas** (obrigado, como entrar, chamados). A senha temporária **não** vem no e-mail — só no diálogo do admin. Se o e-mail de login do cliente for **trocado** depois (admin na ficha do usuário, ou o próprio cliente no primeiro cadastro), o mesmo e-mail de boas-vindas vai para o **endereço novo**.
 
 Após o login, no celular aparece **Ativar alertas**. Toque e aceite: o cartão some na hora. Sem isso o aviso fica só no sino. No iPhone: Compartilhar → Adicionar à Tela de Início, abra pelo ícone (iOS 16.4+) e então ative. Também dá para ativar em **Configurações** (o cartão de baixo some igual). **Agora não** ou o **X** fecham sem ativar.
 
@@ -166,9 +166,10 @@ A lista em **Usuários** mostra a equipe (ADMIN, MANAGER) e os logins CLIENT. Fi
    - nova senha + confirmação
    - Instagram da empresa (opcional)
    - Instagram pessoal (opcional)
+   Se o e-mail for diferente do convite, as boas-vindas vão para o e-mail novo.
 9. Depois disso a senha temporária **deixa de funcionar**.
 10. Use o switch **Ativo** para desativar acesso sem apagar o usuário (o sistema mantém o vínculo com a empresa). Desativar o último administrador ativo é recusado.
-11. Para **ver ou editar**: clique no nome ou em **Editar**. Na ficha mude nome, e-mail, papel, empresa, projetos e ativo, depois **Salvar alterações**.
+11. Para **ver ou editar**: clique no nome ou em **Editar**. Na ficha mude nome, e-mail, papel, empresa, projetos e ativo, depois **Salvar alterações**. Trocar o e-mail de um CLIENT envia boas-vindas para o endereço novo (sem senha).
 12. Para **excluir de verdade**: **Excluir** na lista ou na ficha → confirme. O login some. Não dá para excluir a própria conta. Gerente não exclui administrador. Updates antigos ficam como **Autor removido**.
 13. Para **trocar a senha**: na ficha, bloco Senha → digite (ou **Gerar**) → **Definir senha**. A senha aparece uma vez no diálogo do centro. Não vai por e-mail. Uma sessão já aberta pode continuar até expirar; desative a conta se precisar bloquear agora.
 
@@ -212,7 +213,7 @@ O cliente só vê o que está ligado ao **seu** `clientId` e updates com **visí
 3. Entre com a senha temporária.
 4. Na primeira vez aparece **Complete seu cadastro** (`/client/onboarding`). Não dá para pular.
    - Nome completo
-   - E-mail
+   - E-mail (se mudar o do convite, as boas-vindas chegam no e-mail novo)
    - Nova senha (e confirmação)
    - Instagram da empresa (`@empresa`) — opcional
    - Instagram pessoal (`@voce`) — opcional

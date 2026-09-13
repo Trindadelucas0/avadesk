@@ -12,6 +12,7 @@ import { hashToken, randomToken } from "../lib/crypto-secret.js";
 import { enqueueMail, flushOutbox } from "../lib/email.js";
 import { passwordResetEmail } from "../lib/email-templates.js";
 import { env } from "../lib/env.js";
+import { sendWelcomeEmail } from "../lib/notify.js";
 import type { AuthUser } from "../types/index.js";
 
 const loginSchema = z.object({
@@ -156,6 +157,7 @@ v2AuthRouter.patch("/profile", requireAuth, async (req, res) => {
     if (taken.rows[0]) {
       return sendError(res, 400, "VALIDATION", "Este e-mail já está em uso.");
     }
+    const emailChanged = email !== String(user.email).toLowerCase().trim();
     const hash = await bcrypt.hash(parsed.data.password, 12);
     await query(
       `UPDATE users SET
@@ -180,6 +182,13 @@ v2AuthRouter.patch("/profile", requireAuth, async (req, res) => {
       ]
     );
     await writeAudit(user.id, "complete_profile", "user", user.id);
+    if (user.role === "client" && emailChanged) {
+      await sendWelcomeEmail({
+        userId: user.id,
+        name: parsed.data.name,
+        clientId: user.client_id,
+      });
+    }
     const me = await query<AuthUser>(
       `SELECT id, email, role, client_id, COALESCE(name,'') AS name,
               COALESCE(must_complete_profile, FALSE) AS must_complete_profile,

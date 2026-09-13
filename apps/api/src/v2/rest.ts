@@ -11,10 +11,9 @@ import { writeAudit } from "../lib/audit.js";
 import { handleRouteError, sendError } from "../lib/http.js";
 import { env } from "../lib/env.js";
 import { fromUiRole, sessionDto } from "../lib/dto.js";
-import { notifyUsers } from "../lib/notify.js";
+import { sendWelcomeEmail } from "../lib/notify.js";
 import { isSafePushHref } from "../lib/push-href.js";
 import { sendWebPush } from "../lib/push.js";
-import { welcomeEmail } from "../lib/email-templates.js";
 import { serializeProject } from "./projects-updates.js";
 import { listTicketsDto } from "./tickets.js";
 import { publishLive } from "../lib/live.js";
@@ -401,22 +400,11 @@ v2UsersRouter.post("/", requireAuth, requireRole("admin", "manager"), async (req
       }
     }
     await writeAudit(req.user!.id, "create_user", "user", user.id as string);
-    try {
-      const mail = welcomeEmail({
-        name: parsed.data.name,
-        loginUrl: `${env.webOrigin}/login`,
-      });
-      await notifyUsers({
-        userIds: [String(user.id)],
-        clientId: role === "client" ? (parsed.data.clientId ?? null) : null,
-        title: mail.subject,
-        body: "Sua conta na Avadesk está pronta. Entre no portal para completar o perfil.",
-        href: "/login",
-        email: mail,
-      });
-    } catch (err) {
-      console.error("[welcome-email]", err instanceof Error ? err.message : err);
-    }
+    await sendWelcomeEmail({
+      userId: String(user.id),
+      name: parsed.data.name,
+      clientId: role === "client" ? (parsed.data.clientId ?? null) : null,
+    });
     return res.status(201).json({
       user: serializeUser(user, parsed.data.projectIds ?? []),
       tempPassword: env.seedPassword,
@@ -461,7 +449,8 @@ v2UsersRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async 
         ? true
         : parsed.data.accessAllProjects ?? Boolean(existing.access_all_projects);
 
-    let nextEmail = String(existing.email);
+    const prevEmail = String(existing.email).toLowerCase().trim();
+    let nextEmail = prevEmail;
     if (parsed.data.email) {
       nextEmail = parsed.data.email.toLowerCase().trim();
       const dup = await query(`SELECT id FROM users WHERE lower(email) = $1 AND id <> $2`, [
@@ -470,6 +459,7 @@ v2UsersRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async 
       ]);
       if (dup.rows[0]) return sendError(res, 400, "VALIDATION", "E-mail já cadastrado.");
     }
+    const emailChanged = nextEmail !== prevEmail;
 
     const nextInitials = parsed.data.name ? parsed.data.name.slice(0, 2).toUpperCase() : null;
     const nextActive = parsed.data.active ?? Boolean(existing.active);
@@ -519,6 +509,13 @@ v2UsersRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async 
     const user = await serializeUserById(id.data);
     if (!user) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
     await writeAudit(req.user!.id, "update_user", "user", id.data);
+    if (nextRole === "client" && emailChanged) {
+      await sendWelcomeEmail({
+        userId: id.data,
+        name: String(parsed.data.name ?? existing.name ?? ""),
+        clientId: nextClientId,
+      });
+    }
     return res.json({ user });
   } catch (err) {
     return handleRouteError(res, err, "[v2/users:patch]");

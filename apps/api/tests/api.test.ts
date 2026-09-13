@@ -1332,6 +1332,31 @@ describe("V2 users get, email and password", { skip: !postgresReady }, () => {
       });
     assert.equal(ok.status, 200);
     assert.equal(ok.body.user.email, "edit.email.novo@acme.com");
+    const welcomeNew = await query<{ subject: string }>(
+      `SELECT subject FROM email_outbox WHERE to_email = 'edit.email.novo@acme.com'`
+    );
+    assert.ok(welcomeNew.rows.some((r) => r.subject === "Bem-vindo à Avadesk"));
+    const welcomeOld = await query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM email_outbox
+       WHERE to_email = 'edit.email@acme.com' AND subject = 'Bem-vindo à Avadesk'`
+    );
+    assert.equal(welcomeOld.rows[0].n, 0);
+
+    const same = await request(app)
+      .patch(`/v2/users/${id}`)
+      .set("Cookie", adminCookie)
+      .send({
+        email: "edit.email.novo@acme.com",
+        name: "Edit Email 2",
+        role: "CLIENT",
+        clientId: company.rows[0].id,
+      });
+    assert.equal(same.status, 200);
+    const welcomeAgain = await query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM email_outbox
+       WHERE to_email = 'edit.email.novo@acme.com' AND subject = 'Bem-vindo à Avadesk'`
+    );
+    assert.equal(welcomeAgain.rows[0].n, 1);
 
     const dup = await request(app)
       .patch(`/v2/users/${id}`)
@@ -1344,6 +1369,39 @@ describe("V2 users get, email and password", { skip: !postgresReady }, () => {
       });
     assert.equal(dup.status, 400);
     assert.equal(dup.body.error.code, "VALIDATION");
+    const welcomeDup = await query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM email_outbox
+       WHERE to_email = 'admin@acme.dev' AND subject = 'Bem-vindo à Avadesk'`
+    );
+    assert.equal(welcomeDup.rows[0].n, 0);
+  });
+
+  it("PATCH client email change does not welcome ADMIN/MANAGER", async () => {
+    const before = await query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM email_outbox
+       WHERE to_email = 'manager.email.novo@acme.com' AND subject = 'Bem-vindo à Avadesk'`
+    );
+    const hash = await bcrypt.hash(env.seedPassword, 10);
+    const ins = await query<{ id: string }>(
+      `INSERT INTO users (email, password_hash, role, client_id, name, active)
+       VALUES ('manager.email@acme.com', $1, 'manager', NULL, 'Mgr Email', TRUE)
+       RETURNING id`,
+      [hash]
+    );
+    const res = await request(app)
+      .patch(`/v2/users/${ins.rows[0].id}`)
+      .set("Cookie", adminCookie)
+      .send({
+        email: "manager.email.novo@acme.com",
+        name: "Mgr Email",
+        role: "MANAGER",
+      });
+    assert.equal(res.status, 200);
+    const after = await query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM email_outbox
+       WHERE to_email = 'manager.email.novo@acme.com' AND subject = 'Bem-vindo à Avadesk'`
+    );
+    assert.equal(after.rows[0].n, before.rows[0].n);
   });
 
   it("staff sets password; CLIENT 403; login uses the new password", async () => {
@@ -1393,6 +1451,53 @@ describe("V2 users get, email and password", { skip: !postgresReady }, () => {
       .set("Cookie", adminCookie)
       .send({ password: "NovaSenha99" });
     assert.equal(missing.status, 404);
+  });
+});
+
+describe("V2 auth profile welcome on email change", { skip: !postgresReady }, () => {
+  it("sends welcome to the new login email only when it changes", async () => {
+    const hash = await bcrypt.hash(env.seedPassword, 10);
+    const company = await query<{ id: string }>(`SELECT id FROM clients ORDER BY name LIMIT 1`);
+    await query(
+      `INSERT INTO users (email, password_hash, role, client_id, name, active, must_complete_profile)
+       VALUES ('profile.email@acme.com', $1, 'client', $2, 'Perfil Email', TRUE, TRUE)`,
+      [hash, company.rows[0].id]
+    );
+    const login = await request(app)
+      .post("/v2/auth/login")
+      .send({ email: "profile.email@acme.com", password: env.seedPassword });
+    assert.equal(login.status, 200);
+    const cookie = cookieFrom(login);
+
+    const keep = await request(app)
+      .patch("/v2/auth/profile")
+      .set("Cookie", cookie)
+      .send({
+        name: "Perfil Keep",
+        email: "profile.email@acme.com",
+        password: "NovaSenha99",
+      });
+    assert.equal(keep.status, 200);
+    const none = await query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM email_outbox
+       WHERE to_email = 'profile.email@acme.com' AND subject = 'Bem-vindo à Avadesk'`
+    );
+    assert.equal(none.rows[0].n, 0);
+
+    const change = await request(app)
+      .patch("/v2/auth/profile")
+      .set("Cookie", cookie)
+      .send({
+        name: "Perfil Novo",
+        email: "profile.email.novo@acme.com",
+        password: "OutraSenha99",
+      });
+    assert.equal(change.status, 200);
+    assert.equal(change.body.user.email, "profile.email.novo@acme.com");
+    const yes = await query<{ subject: string }>(
+      `SELECT subject FROM email_outbox WHERE to_email = 'profile.email.novo@acme.com'`
+    );
+    assert.ok(yes.rows.some((r) => r.subject === "Bem-vindo à Avadesk"));
   });
 });
 

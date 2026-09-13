@@ -1,5 +1,7 @@
 import { query } from "./db.js";
 import { enqueueMail, flushOutbox } from "./email.js";
+import { welcomeEmail } from "./email-templates.js";
+import { env } from "./env.js";
 import { sanitizePushHref } from "./push-href.js";
 import { sendWebPush } from "./push.js";
 
@@ -49,6 +51,29 @@ export async function notifyUsers(opts: {
 
   if (opts.email) {
     void flushOutbox().catch((e) => console.error("[outbox]", e instanceof Error ? e.message : e));
+  }
+}
+
+export async function sendWelcomeEmail(opts: {
+  userId: string;
+  name: string;
+  clientId: string | null;
+}): Promise<void> {
+  try {
+    const mail = welcomeEmail({
+      name: opts.name,
+      loginUrl: `${env.webOrigin}/login`,
+    });
+    await notifyUsers({
+      userIds: [opts.userId],
+      clientId: opts.clientId,
+      title: mail.subject,
+      body: "Sua conta na Avadesk está pronta. Entre no portal para completar o perfil.",
+      href: "/login",
+      email: mail,
+    });
+  } catch (err) {
+    console.error("[welcome-email]", err instanceof Error ? err.message : err);
   }
 }
 
