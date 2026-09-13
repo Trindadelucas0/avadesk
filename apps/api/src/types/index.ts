@@ -50,7 +50,7 @@ export interface ProjectRow {
 export interface UpdateRow {
   id: string;
   project_id: string;
-  author_id: string;
+  author_id: string | null;
   content: string;
   status: UpdateStatus;
   visible_to_client: boolean;

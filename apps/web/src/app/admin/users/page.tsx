@@ -15,7 +15,7 @@ import { PageHeader } from "@/components/hub/page-header";
 import { EmptyState } from "@/components/hub/states";
 import { DEMO_PASSWORD } from "@/lib/mock/seed";
 import { useHubStore } from "@/stores/hub-store";
-import type { Role } from "@/types";
+import type { Role, User } from "@/types";
 
 const ROLES: Role[] = ["ADMIN", "MANAGER", "CLIENT"];
 const ROLE_FILTERS: Array<{ id: "ALL" | Role; label: string }> = [
@@ -39,7 +39,9 @@ export default function AdminUsersPage() {
   const projects = useHubStore((s) => s.projects);
   const upsertUser = useHubStore((s) => s.upsertUser);
   const toggleUserActive = useHubStore((s) => s.toggleUserActive);
+  const deleteUser = useHubStore((s) => s.deleteUser);
   const refreshUsers = useHubStore((s) => s.refreshUsers);
+  const session = useHubStore((s) => s.session);
 
   const clientMap = useMemo(
     () => Object.fromEntries(clients.map((c) => [c.id, c.name])),
@@ -65,6 +67,8 @@ export default function AdminUsersPage() {
   const [copied, setCopied] = useState(false);
   const [roleFilter, setRoleFilter] = useState<"ALL" | Role>("ALL");
   const [query, setQuery] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     void refreshUsers();
@@ -178,8 +182,13 @@ export default function AdminUsersPage() {
           <Switch
             checked={u.active}
             onCheckedChange={() => {
-              void toggleUserActive(u.id);
-              toast.success(u.active ? "Usuário desativado" : "Usuário ativado");
+              void toggleUserActive(u.id).then((result) => {
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
+                toast.success(u.active ? "Usuário desativado" : "Usuário ativado");
+              });
             }}
             aria-label={`Ativo ${u.name}`}
           />
@@ -187,9 +196,16 @@ export default function AdminUsersPage() {
         </div>
       ),
       actions: (
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/admin/users/${u.id}`}>Abrir</Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/admin/users/${u.id}`}>Editar</Link>
+          </Button>
+          {session?.id !== u.id && !(session?.role === "MANAGER" && u.role === "ADMIN") ? (
+            <Button variant="danger" size="sm" type="button" onClick={() => setPendingDelete(u)}>
+              Excluir
+            </Button>
+          ) : null}
+        </div>
       ),
     };
   });
@@ -199,7 +215,7 @@ export default function AdminUsersPage() {
       <PageHeader
         icon={Users}
         title="Usuários"
-        description="Veja, edite e defina senha de cada login. Uma empresa pode ter vários usuários."
+        description="Veja, edite, desative ou exclua cada login. Uma empresa pode ter vários usuários."
         actions={
           <Button variant="accent" size="lg" className="w-full sm:w-auto" onClick={openCreate}>
             <UserPlus className="h-5 w-5" />
@@ -396,6 +412,49 @@ export default function AdminUsersPage() {
               Criar usuário
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setPendingDelete(null);
+        }}
+        title="Excluir usuário?"
+        description={
+          pendingDelete
+            ? `${pendingDelete.name} (${pendingDelete.email}) será apagado. Chamados e updates antigos ficam, sem o nome desta pessoa. Esta ação não pode ser desfeita.`
+            : undefined
+        }
+      >
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            type="button"
+            disabled={deleting}
+            onClick={() => setPendingDelete(null)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            type="button"
+            disabled={deleting}
+            onClick={async () => {
+              if (!pendingDelete) return;
+              setDeleting(true);
+              const result = await deleteUser(pendingDelete.id);
+              setDeleting(false);
+              if (!result.ok) {
+                toast.error(result.error);
+                return;
+              }
+              setPendingDelete(null);
+              toast.success("Usuário excluído");
+            }}
+          >
+            {deleting ? "Excluindo…" : "Excluir"}
+          </Button>
         </div>
       </Modal>
 

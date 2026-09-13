@@ -49,7 +49,7 @@ function UpdateCardBody({
       {place ? <p className="mt-1 text-xs text-[var(--text-muted)]">{place}</p> : null}
       <p className="mt-1 line-clamp-3 text-sm text-[var(--text-secondary)]">{update.content}</p>
       <p className="mt-3 text-xs text-[var(--text-muted)]">
-        {update.authorName} · {formatRelative(update.createdAt)} · {formatDate(update.createdAt)}
+        {update.authorName || "Autor removido"} · {formatRelative(update.createdAt)} · {formatDate(update.createdAt)}
       </p>
     </>
   );
@@ -147,7 +147,7 @@ export function UpdateDetailModal({
               </>
             ) : null}
             <dt className="text-[var(--text-muted)]">Autor</dt>
-            <dd className="text-[var(--text-primary)]">{update.authorName}</dd>
+            <dd className="text-[var(--text-primary)]">{update.authorName || "Autor removido"}</dd>
             <dt className="text-[var(--text-muted)]">Quando</dt>
             <dd className="text-[var(--text-primary)]">
               {formatDateTime(update.createdAt)} ({formatRelative(update.createdAt)})

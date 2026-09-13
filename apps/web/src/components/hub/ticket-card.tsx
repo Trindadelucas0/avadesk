@@ -559,11 +559,11 @@ export function TicketCard({
           ) : null}
 
           {!editing && mode === "client" && waitingConfirm ? (
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex min-w-0 flex-wrap gap-2">
               <Button
                 variant="accent"
                 size="lg"
-                className="w-full sm:w-auto"
+                className="h-auto min-h-11 min-w-0 flex-1 basis-[12rem] whitespace-normal px-4 text-center leading-snug"
                 disabled={busy}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -575,7 +575,7 @@ export function TicketCard({
               <Button
                 variant="danger"
                 size="lg"
-                className="w-full sm:w-auto"
+                className="h-auto min-h-11 min-w-0 flex-1 basis-[12rem] whitespace-normal px-4 text-center leading-snug"
                 disabled={busy}
                 onClick={(e) => {
                   e.stopPropagation();

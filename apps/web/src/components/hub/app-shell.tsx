@@ -311,7 +311,9 @@ export function AppShell({
                 </span>
                 <span className="hidden min-w-0 sm:block">
                   <span className="block truncate text-xs font-medium leading-none">{session?.name}</span>
-                  <span className="mt-0.5 block text-[10px] text-[var(--text-muted)]">{session?.role}</span>
+                  {session?.role && session.role !== "CLIENT" ? (
+                    <span className="mt-0.5 block text-[10px] text-[var(--text-muted)]">{session.role}</span>
+                  ) : null}
                 </span>
               </Link>
               <Button

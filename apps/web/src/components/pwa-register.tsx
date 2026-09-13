@@ -5,7 +5,10 @@ import { Bell, Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useHubStore } from "@/stores/hub-store";
 import {
+  WEB_PUSH_STATUS_EVENT,
+  emitWebPushStatus,
   enableWebPushFromUserGesture,
+  notificationPermissionGranted,
   subscribeWebPushIfPermitted,
   type WebPushStatus,
 } from "@/lib/web-push-subscribe";
@@ -16,6 +19,13 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 type PushPrompt = Extract<WebPushStatus, "need-permission" | "need-install" | "denied">;
+
+function pushPromptFromStatus(status: WebPushStatus): PushPrompt | null {
+  if (status === "need-permission" || status === "need-install" || status === "denied") {
+    return status;
+  }
+  return null;
+}
 
 export function PwaRegister() {
   const session = useHubStore((s) => s.session);
@@ -51,16 +61,44 @@ export function PwaRegister() {
   useEffect(() => {
     if (!hydrated || !session) return;
     let cancelled = false;
-    void subscribeWebPushIfPermitted().then((status) => {
+    const applyStatus = (status: WebPushStatus) => {
       if (cancelled) return;
-      if (status === "need-permission" || status === "need-install" || status === "denied") {
-        setPushPrompt(status);
+      if (notificationPermissionGranted() || status === "ok") {
+        setPushPrompt(null);
         return;
       }
-      setPushPrompt(null);
-    });
+      const next = pushPromptFromStatus(status);
+      if (next) setPushPrompt(next);
+    };
+    void subscribeWebPushIfPermitted().then(applyStatus);
+    const onStatus = (event: Event) => {
+      const detail = (event as CustomEvent<WebPushStatus>).detail;
+      if (typeof detail !== "string") return;
+      applyStatus(detail);
+    };
+    window.addEventListener(WEB_PUSH_STATUS_EVENT, onStatus);
+    let perm: PermissionStatus | undefined;
+    let onPermChange: (() => void) | undefined;
+    if ("permissions" in navigator) {
+      void navigator.permissions
+        .query({ name: "notifications" as PermissionName })
+        .then((p) => {
+          if (cancelled) return;
+          perm = p;
+          onPermChange = () => {
+            if (p.state === "granted") setPushPrompt(null);
+          };
+          onPermChange();
+          p.addEventListener("change", onPermChange);
+        })
+        .catch(() => {
+          /* Safari / WebView sem Permissions API */
+        });
+    }
     return () => {
       cancelled = true;
+      window.removeEventListener(WEB_PUSH_STATUS_EVENT, onStatus);
+      if (perm && onPermChange) perm.removeEventListener("change", onPermChange);
     };
   }, [hydrated, session?.id]);
 
@@ -109,14 +147,17 @@ export function PwaRegister() {
                 disabled={pushBusy}
                 onClick={async () => {
                   setPushBusy(true);
-                  const status = await enableWebPushFromUserGesture();
-                  setPushBusy(false);
-                  if (status === "ok") {
-                    setPushPrompt(null);
-                    return;
-                  }
-                  if (status === "need-permission" || status === "need-install" || status === "denied") {
-                    setPushPrompt(status);
+                  try {
+                    const status = await enableWebPushFromUserGesture(() => setPushPrompt(null));
+                    emitWebPushStatus(status);
+                    if (notificationPermissionGranted() || status === "ok") {
+                      setPushPrompt(null);
+                      return;
+                    }
+                    const next = pushPromptFromStatus(status);
+                    if (next) setPushPrompt(next);
+                  } finally {
+                    setPushBusy(false);
                   }
                 }}
               >
@@ -203,9 +244,13 @@ export function PushAlertsButton() {
         disabled={busy}
         onClick={async () => {
           setBusy(true);
-          const next = await enableWebPushFromUserGesture();
-          setBusy(false);
-          setStatus(next);
+          try {
+            const next = await enableWebPushFromUserGesture(() => emitWebPushStatus("ok"));
+            emitWebPushStatus(next);
+            setStatus(next);
+          } finally {
+            setBusy(false);
+          }
         }}
       >
         Ativar alertas na tela do celular

@@ -7,7 +7,15 @@ import type { DocumentItem, FileItem, NotificationItem } from "@/types";
 import Link from "next/link";
 import { toast } from "sonner";
 
-export function DocumentCard({ doc }: { doc: DocumentItem }) {
+export function DocumentCard({
+  doc,
+  onEdit,
+  onDelete,
+}: {
+  doc: DocumentItem;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
   return (
     <article className="hub-surface flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex gap-3">
@@ -27,23 +35,35 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
           ) : null}
         </div>
       </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => {
-          const fileId = [...doc.history].reverse().find((h) => "fileId" in h && h.fileId)?.fileId as
-            | string
-            | undefined;
-          if (fileId) {
-            window.location.href = `/api/v2/files/${fileId}/download`;
-            return;
-          }
-          toast.message("Esta versão ainda não tem arquivo anexado.");
-        }}
-      >
-        <Download className="h-3.5 w-3.5" />
-        Baixar
-      </Button>
+      <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const fileId = [...doc.history].reverse().find((h) => "fileId" in h && h.fileId)?.fileId as
+              | string
+              | undefined;
+            if (fileId) {
+              window.location.href = `/api/v2/files/${fileId}/download`;
+              return;
+            }
+            toast.message("Esta versão ainda não tem arquivo anexado.");
+          }}
+        >
+          <Download className="h-3.5 w-3.5" />
+          Baixar
+        </Button>
+        {onEdit ? (
+          <Button variant="ghost" size="sm" type="button" onClick={onEdit}>
+            Editar
+          </Button>
+        ) : null}
+        {onDelete ? (
+          <Button variant="danger" size="sm" type="button" onClick={onDelete}>
+            Excluir
+          </Button>
+        ) : null}
+      </div>
     </article>
   );
 }
@@ -51,12 +71,16 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
 export function FileCard({
   file,
   hideCategory = false,
+  onEdit,
+  onDelete,
 }: {
   file: FileItem;
   hideCategory?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   return (
-    <article className="hub-surface flex items-center justify-between gap-3 p-3">
+    <article className="hub-surface flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-center gap-3">
         <Folder className="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden />
         <div className="min-w-0">
@@ -68,16 +92,28 @@ export function FileCard({
           </p>
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={`Baixar ${file.name}`}
-        onClick={() => {
-          window.location.href = `/api/v2/files/${file.id}/download`;
-        }}
-      >
-        <Download className="h-4 w-4" />
-      </Button>
+      <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Baixar ${file.name}`}
+          onClick={() => {
+            window.location.href = `/api/v2/files/${file.id}/download`;
+          }}
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+        {onEdit ? (
+          <Button variant="ghost" size="sm" type="button" onClick={onEdit}>
+            Editar
+          </Button>
+        ) : null}
+        {onDelete ? (
+          <Button variant="danger" size="sm" type="button" onClick={onDelete}>
+            Excluir
+          </Button>
+        ) : null}
+      </div>
     </article>
   );
 }

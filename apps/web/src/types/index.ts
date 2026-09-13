@@ -109,7 +109,7 @@ export interface Project {
 export interface UpdateItem {
   id: string;
   projectId: string;
-  authorId: string;
+  authorId: string | null;
   authorName: string;
   type: UpdateType;
   title: string;

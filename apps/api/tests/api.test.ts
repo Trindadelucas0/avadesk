@@ -11,6 +11,7 @@ import { env } from "../src/lib/env.js";
 import { encryptSecret, hashToken } from "../src/lib/crypto-secret.js";
 import { isSafePushHref, sanitizePushHref } from "../src/lib/push-href.js";
 import { WEB_PUSH_SEND_OPTIONS } from "../src/lib/push.js";
+import { storageRoot } from "../src/lib/storage.js";
 import { assertSafeTestDatabaseUrl } from "../src/lib/test-database.js";
 import { shouldReceiveLive } from "../src/lib/live.js";
 
@@ -1392,6 +1393,174 @@ describe("V2 users get, email and password", { skip: !postgresReady }, () => {
       .set("Cookie", adminCookie)
       .send({ password: "NovaSenha99" });
     assert.equal(missing.status, 404);
+  });
+});
+
+describe("V2 users delete and last admin", { skip: !postgresReady }, () => {
+  it("CLIENT cannot delete users (403)", async () => {
+    const user = await query<{ id: string }>(`SELECT id FROM users WHERE email = 'cliente@acme.com'`);
+    const res = await request(app)
+      .delete(`/v2/users/${user.rows[0].id}`)
+      .set("Cookie", clientCookie);
+    assert.equal(res.status, 403);
+  });
+
+  it("staff cannot delete own account (400)", async () => {
+    const user = await query<{ id: string }>(`SELECT id FROM users WHERE email = 'admin@acme.dev'`);
+    const res = await request(app)
+      .delete(`/v2/users/${user.rows[0].id}`)
+      .set("Cookie", adminCookie);
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error?.code, "VALIDATION");
+  });
+
+  it("MANAGER cannot delete ADMIN (403)", async () => {
+    const user = await query<{ id: string }>(`SELECT id FROM users WHERE email = 'admin@acme.dev'`);
+    const res = await request(app)
+      .delete(`/v2/users/${user.rows[0].id}`)
+      .set("Cookie", managerCookie);
+    assert.equal(res.status, 403);
+  });
+
+  it("PATCH refuses to deactivate the last active admin (409)", async () => {
+    const user = await query<{ id: string }>(`SELECT id FROM users WHERE email = 'admin@acme.dev'`);
+    const res = await request(app)
+      .patch(`/v2/users/${user.rows[0].id}`)
+      .set("Cookie", adminCookie)
+      .send({ active: false });
+    assert.equal(res.status, 409);
+    assert.equal(res.body.error?.code, "CONFLICT");
+  });
+
+  it("staff deletes a CLIENT; login fails; GET is 404", async () => {
+    const hash = await bcrypt.hash(env.seedPassword, 10);
+    const company = await query<{ id: string }>(`SELECT id FROM clients ORDER BY name LIMIT 1`);
+    const ins = await query<{ id: string }>(
+      `INSERT INTO users (email, password_hash, role, client_id, name, active)
+       VALUES ('delete.me@acme.com', $1, 'client', $2, 'Delete Me', TRUE)
+       RETURNING id`,
+      [hash, company.rows[0].id]
+    );
+    const id = ins.rows[0].id;
+    const res = await request(app).delete(`/v2/users/${id}`).set("Cookie", adminCookie);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+
+    const missing = await request(app).get(`/v2/users/${id}`).set("Cookie", adminCookie);
+    assert.equal(missing.status, 404);
+
+    const login = await request(app)
+      .post("/v2/auth/login")
+      .send({ email: "delete.me@acme.com", password: env.seedPassword });
+    assert.equal(login.status, 401);
+  });
+});
+
+describe("V2 files patch/delete and documents", { skip: !postgresReady }, () => {
+  const sampleTxt = Buffer.from("arquivo de teste").toString("base64");
+
+  it("staff patches name and category; download uses new name; CLIENT 403; other tenant 404", async () => {
+    const created = await request(app)
+      .post("/v2/files")
+      .set("Cookie", adminCookie)
+      .send({
+        projectId: projectAId,
+        name: "manual.txt",
+        mime: "text/plain",
+        category: "contrato_documentacao",
+        contentBase64: sampleTxt,
+      });
+    assert.equal(created.status, 201);
+    const fileId = created.body.file.id as string;
+
+    const patched = await request(app)
+      .patch(`/v2/files/${fileId}`)
+      .set("Cookie", adminCookie)
+      .send({ name: "manual-v2.txt", category: "outro" });
+    assert.equal(patched.status, 200);
+    assert.equal(patched.body.file.name, "manual-v2.txt");
+    assert.equal(patched.body.file.category, "outro");
+
+    const list = await request(app).get("/v2/files").set("Cookie", adminCookie);
+    const found = list.body.files.find((f: { id: string }) => f.id === fileId);
+    assert.equal(found?.name, "manual-v2.txt");
+    assert.equal(found?.category, "outro");
+
+    const download = await request(app)
+      .get(`/v2/files/${fileId}/download`)
+      .set("Cookie", adminCookie);
+    assert.equal(download.status, 200);
+    assert.match(String(download.headers["content-disposition"] || ""), /manual-v2\.txt/);
+
+    const clientPatch = await request(app)
+      .patch(`/v2/files/${fileId}`)
+      .set("Cookie", clientCookie)
+      .send({ name: "hack.txt" });
+    assert.equal(clientPatch.status, 403);
+
+    const otherTenant = await request(app)
+      .patch(`/v2/files/${fileId}`)
+      .set("Cookie", clientBCookie)
+      .send({ name: "hack.txt" });
+    assert.equal(otherTenant.status, 403);
+
+    const otherDownload = await request(app)
+      .get(`/v2/files/${fileId}/download`)
+      .set("Cookie", clientBCookie);
+    assert.equal(otherDownload.status, 404);
+
+    const clientDelete = await request(app)
+      .delete(`/v2/files/${fileId}`)
+      .set("Cookie", clientCookie);
+    assert.equal(clientDelete.status, 403);
+
+    const deleted = await request(app).delete(`/v2/files/${fileId}`).set("Cookie", adminCookie);
+    assert.equal(deleted.status, 200);
+    assert.equal(deleted.body.ok, true);
+    assert.equal(fs.existsSync(path.join(storageRoot(), fileId)), false);
+
+    const gone = await request(app)
+      .get(`/v2/files/${fileId}/download`)
+      .set("Cookie", adminCookie);
+    assert.equal(gone.status, 404);
+  });
+
+  it("staff patches and deletes a document; CLIENT 403", async () => {
+    const created = await request(app)
+      .post("/v2/documents")
+      .set("Cookie", adminCookie)
+      .send({
+        projectId: projectAId,
+        title: "Ficha legado",
+        version: "1.0",
+      });
+    assert.equal(created.status, 201);
+    const docId = created.body.document.id as string;
+
+    const clientPatch = await request(app)
+      .patch(`/v2/documents/${docId}`)
+      .set("Cookie", clientCookie)
+      .send({ title: "Hack" });
+    assert.equal(clientPatch.status, 403);
+
+    const patched = await request(app)
+      .patch(`/v2/documents/${docId}`)
+      .set("Cookie", adminCookie)
+      .send({ title: "Ficha atualizada" });
+    assert.equal(patched.status, 200);
+    assert.equal(patched.body.document.title, "Ficha atualizada");
+
+    const clientDelete = await request(app)
+      .delete(`/v2/documents/${docId}`)
+      .set("Cookie", clientCookie);
+    assert.equal(clientDelete.status, 403);
+
+    const deleted = await request(app).delete(`/v2/documents/${docId}`).set("Cookie", adminCookie);
+    assert.equal(deleted.status, 200);
+
+    const list = await request(app).get("/v2/documents").set("Cookie", adminCookie);
+    assert.equal(list.status, 200);
+    assert.ok(!list.body.documents.some((d: { id: string }) => d.id === docId));
   });
 });
 

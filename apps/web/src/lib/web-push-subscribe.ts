@@ -122,7 +122,20 @@ export async function subscribeWebPushIfPermitted(): Promise<WebPushStatus> {
   return finishSubscribe();
 }
 
-export async function enableWebPushFromUserGesture(): Promise<WebPushStatus> {
+export const WEB_PUSH_STATUS_EVENT = "avadesk-web-push-status";
+
+export function notificationPermissionGranted(): boolean {
+  return typeof Notification !== "undefined" && Notification.permission === "granted";
+}
+
+export function emitWebPushStatus(status: WebPushStatus): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(WEB_PUSH_STATUS_EVENT, { detail: status }));
+}
+
+export async function enableWebPushFromUserGesture(
+  onPermissionGranted?: () => void,
+): Promise<WebPushStatus> {
   if (typeof window === "undefined") return "unavailable";
   if (!secureEnough()) return "unavailable";
   if (iosNeedsHomeScreen()) return "need-install";
@@ -134,5 +147,6 @@ export async function enableWebPushFromUserGesture(): Promise<WebPushStatus> {
   if (permission !== "granted") {
     return permission === "denied" ? "denied" : "need-permission";
   }
+  onPermissionGranted?.();
   return finishSubscribe();
 }

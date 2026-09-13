@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { CenterNotice } from "@/components/hub/center-notice";
+import { Modal } from "@/components/hub/modal";
 import { PageHeader } from "@/components/hub/page-header";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/hub/states";
 import { useHubStore } from "@/stores/hub-store";
@@ -46,13 +47,16 @@ function generatePassword(): string {
 
 export default function AdminUserDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = String(params.id);
   const user = useHubStore((s) => s.users.find((u) => u.id === id));
+  const session = useHubStore((s) => s.session);
   const clients = useHubStore((s) => s.clients);
   const projects = useHubStore((s) => s.projects);
   const fetchUser = useHubStore((s) => s.fetchUser);
   const updateUser = useHubStore((s) => s.updateUser);
   const setUserPassword = useHubStore((s) => s.setUserPassword);
+  const deleteUser = useHubStore((s) => s.deleteUser);
 
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -71,6 +75,8 @@ export default function AdminUserDetailPage() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const selectedClientId = clientId || clients[0]?.id || "";
   const companyProjects = projects.filter((p) => p.clientId === selectedClientId);
@@ -368,6 +374,22 @@ export default function AdminUserDetailPage() {
             {saving ? "Salvando…" : "Salvar alterações"}
           </Button>
         </div>
+        {session?.id !== user.id && !(session?.role === "MANAGER" && user.role === "ADMIN") ? (
+          <div className="mt-6 border-t border-[var(--border)] pt-4">
+            <p className="text-sm font-medium text-[var(--text-primary)]">Zona de risco</p>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              Apaga o login. Chamados e updates antigos ficam sem o nome desta pessoa.
+            </p>
+            <Button
+              variant="danger"
+              type="button"
+              className="mt-3 w-full sm:w-auto"
+              onClick={() => setConfirmDelete(true)}
+            >
+              Excluir usuário
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       <section className="hub-surface mb-6 p-4">
@@ -423,6 +445,45 @@ export default function AdminUserDetailPage() {
           </Button>
         </div>
       </section>
+
+      <Modal
+        open={confirmDelete}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setConfirmDelete(false);
+        }}
+        title="Excluir usuário?"
+        description={`${user.name} (${user.email}) será apagado. Esta ação não pode ser desfeita.`}
+      >
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            type="button"
+            disabled={deleting}
+            onClick={() => setConfirmDelete(false)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            type="button"
+            disabled={deleting}
+            onClick={async () => {
+              setDeleting(true);
+              const result = await deleteUser(user.id);
+              setDeleting(false);
+              if (!result.ok) {
+                toast.error(result.error);
+                return;
+              }
+              setConfirmDelete(false);
+              toast.success("Usuário excluído");
+              router.push("/admin/users");
+            }}
+          >
+            {deleting ? "Excluindo…" : "Excluir"}
+          </Button>
+        </div>
+      </Modal>
 
       <CenterNotice
         open={Boolean(passwordNotice)}

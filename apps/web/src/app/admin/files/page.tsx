@@ -6,6 +6,7 @@ import { FolderOpen, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   DocumentCard,
   EmptyState,
@@ -13,6 +14,7 @@ import {
   FilesBreadcrumb,
   FolderCard,
   FolderGrid,
+  Modal,
   PageHeader,
   PageSkeleton,
 } from "@/components/hub";
@@ -22,6 +24,8 @@ import {
   SYSTEM_FILE_CATEGORIES,
   isSystemFileCategory,
   type FileCategory,
+  type DocumentItem,
+  type FileItem,
 } from "@/types";
 import { ApiError } from "@/lib/v2-client";
 import { cn, fileCategoryLabel } from "@/lib/utils";
@@ -61,6 +65,10 @@ function AdminFilesInner() {
   const session = useHubStore((s) => s.session);
   const hydrated = useHubStore((s) => s.hydrated);
   const addFile = useHubStore((s) => s.addFile);
+  const updateFile = useHubStore((s) => s.updateFile);
+  const deleteFile = useHubStore((s) => s.deleteFile);
+  const updateDocument = useHubStore((s) => s.updateDocument);
+  const deleteDocument = useHubStore((s) => s.deleteDocument);
 
   const allowedIds = useMemo(() => new Set(projects.map((project) => project.id)), [projects]);
   const projectId = parseProjectQuery(searchParams.get("project"), allowedIds);
@@ -71,6 +79,15 @@ function AdminFilesInner() {
   const [category, setCategory] = useState<FileCategory>(SYSTEM_FILE_CATEGORIES[0]);
   const [newLabel, setNewLabel] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [editingFile, setEditingFile] = useState<FileItem | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCategory, setEditCategory] = useState<FileCategory>(SYSTEM_FILE_CATEGORIES[0]);
+  const [editNewLabel, setEditNewLabel] = useState("");
+  const [pendingFileDelete, setPendingFileDelete] = useState<FileItem | null>(null);
+  const [editingDoc, setEditingDoc] = useState<DocumentItem | null>(null);
+  const [editDocTitle, setEditDocTitle] = useState("");
+  const [pendingDocDelete, setPendingDocDelete] = useState<DocumentItem | null>(null);
+  const [fileBusy, setFileBusy] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -174,6 +191,256 @@ function AdminFilesInner() {
   );
 
   if (!hydrated) return <PageSkeleton />;
+
+  const editNewLabelValid = isValidNewCategoryLabel(editNewLabel);
+
+  const fileModals = (
+    <>
+      <Modal
+        open={Boolean(editingFile)}
+        onOpenChange={(open) => {
+          if (!open && !fileBusy) setEditingFile(null);
+        }}
+        title="Editar arquivo"
+        description="Altere o nome ou a pasta. O conteúdo do arquivo permanece o mesmo."
+      >
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="edit-file-name">Nome</Label>
+            <Input
+              id="edit-file-name"
+              className="mt-1.5"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-file-category">Pasta</Label>
+            <select
+              id="edit-file-category"
+              className="mt-1.5 w-full hub-control"
+              value={editCategory}
+              onChange={(e) => setEditCategory(e.target.value)}
+            >
+              {SYSTEM_FILE_CATEGORIES.map((value) => (
+                <option key={value} value={value}>
+                  {folderCategoryLabel(value)}
+                </option>
+              ))}
+              {customOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+              {editingFile &&
+              !isSystemFileCategory(editingFile.category) &&
+              !customOptions.some((opt) => opt.value === editingFile.category) ? (
+                <option value={editingFile.category}>
+                  {fileCategoryLabel(editingFile.category, editingFile.categoryLabel)}
+                </option>
+              ) : null}
+              <option value={NEW_FILE_CATEGORY}>Nova categoria…</option>
+            </select>
+          </div>
+          {editCategory === NEW_FILE_CATEGORY ? (
+            <div>
+              <Label htmlFor="edit-file-category-name">Nome da categoria</Label>
+              <Input
+                id="edit-file-category-name"
+                className="mt-1.5"
+                value={editNewLabel}
+                maxLength={60}
+                autoComplete="off"
+                onChange={(e) => setEditNewLabel(e.target.value)}
+                aria-invalid={editNewLabel.length > 0 && !editNewLabelValid}
+              />
+            </div>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" type="button" disabled={fileBusy} onClick={() => setEditingFile(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="accent"
+              type="button"
+              disabled={fileBusy}
+              onClick={async () => {
+                if (!editingFile) return;
+                if (!editName.trim()) {
+                  toast.error("Informe o nome.");
+                  return;
+                }
+                if (editCategory === NEW_FILE_CATEGORY && !editNewLabelValid) {
+                  toast.error("Nome de categoria inválido.");
+                  return;
+                }
+                const payload: { name: string; category?: string; categoryLabel?: string } = {
+                  name: editName.trim(),
+                };
+                if (editCategory === NEW_FILE_CATEGORY) {
+                  payload.categoryLabel = editNewLabel.trim();
+                } else if (isSystemFileCategory(editCategory)) {
+                  payload.category = editCategory;
+                } else {
+                  payload.category = editCategory;
+                  payload.categoryLabel = fileCategoryLabel(
+                    editCategory,
+                    files.find((file) => file.projectId === projectId && file.category === editCategory)
+                      ?.categoryLabel ?? editingFile.categoryLabel
+                  );
+                }
+                setFileBusy(true);
+                const result = await updateFile(editingFile.id, payload);
+                setFileBusy(false);
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
+                setEditingFile(null);
+                toast.success("Arquivo atualizado");
+              }}
+            >
+              {fileBusy ? "Salvando…" : "Salvar"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(pendingFileDelete)}
+        onOpenChange={(open) => {
+          if (!open && !fileBusy) setPendingFileDelete(null);
+        }}
+        title="Excluir arquivo?"
+        description={
+          pendingFileDelete
+            ? `${pendingFileDelete.name} some da pasta e do disco. O cliente deixa de baixar. Esta ação não pode ser desfeita.`
+            : undefined
+        }
+      >
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            type="button"
+            disabled={fileBusy}
+            onClick={() => setPendingFileDelete(null)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            type="button"
+            disabled={fileBusy}
+            onClick={async () => {
+              if (!pendingFileDelete) return;
+              setFileBusy(true);
+              const result = await deleteFile(pendingFileDelete.id);
+              setFileBusy(false);
+              if (!result.ok) {
+                toast.error(result.error);
+                return;
+              }
+              setPendingFileDelete(null);
+              toast.success("Arquivo excluído");
+            }}
+          >
+            {fileBusy ? "Excluindo…" : "Excluir"}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(editingDoc)}
+        onOpenChange={(open) => {
+          if (!open && !fileBusy) setEditingDoc(null);
+        }}
+        title="Editar documento"
+      >
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="edit-doc-title">Título</Label>
+            <Input
+              id="edit-doc-title"
+              className="mt-1.5"
+              value={editDocTitle}
+              onChange={(e) => setEditDocTitle(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" type="button" disabled={fileBusy} onClick={() => setEditingDoc(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="accent"
+              type="button"
+              disabled={fileBusy}
+              onClick={async () => {
+                if (!editingDoc) return;
+                if (!editDocTitle.trim()) {
+                  toast.error("Informe o título.");
+                  return;
+                }
+                setFileBusy(true);
+                const result = await updateDocument(editingDoc.id, { title: editDocTitle.trim() });
+                setFileBusy(false);
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
+                setEditingDoc(null);
+                toast.success("Documento atualizado");
+              }}
+            >
+              {fileBusy ? "Salvando…" : "Salvar"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(pendingDocDelete)}
+        onOpenChange={(open) => {
+          if (!open && !fileBusy) setPendingDocDelete(null);
+        }}
+        title="Excluir documento?"
+        description={
+          pendingDocDelete
+            ? `${pendingDocDelete.title} sai da pasta Documentação. Esta ação não pode ser desfeita.`
+            : undefined
+        }
+      >
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            type="button"
+            disabled={fileBusy}
+            onClick={() => setPendingDocDelete(null)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            type="button"
+            disabled={fileBusy}
+            onClick={async () => {
+              if (!pendingDocDelete) return;
+              setFileBusy(true);
+              const result = await deleteDocument(pendingDocDelete.id);
+              setFileBusy(false);
+              if (!result.ok) {
+                toast.error(result.error);
+                return;
+              }
+              setPendingDocDelete(null);
+              toast.success("Documento excluído");
+            }}
+          >
+            {fileBusy ? "Excluindo…" : "Excluir"}
+          </Button>
+        </div>
+      </Modal>
+    </>
+  );
 
   const uploadPanel = showUpload ? (
     <div className="space-y-4">
@@ -322,14 +589,32 @@ function AdminFilesInner() {
               .map((entry) => (
                 <li key={`${entry.kind}-${entry.id}`}>
                   {entry.kind === "doc" ? (
-                    <DocumentCard doc={entry.doc} />
+                    <DocumentCard
+                      doc={entry.doc}
+                      onEdit={() => {
+                        setEditingDoc(entry.doc);
+                        setEditDocTitle(entry.doc.title);
+                      }}
+                      onDelete={() => setPendingDocDelete(entry.doc)}
+                    />
                   ) : (
-                    <FileCard file={entry.file} hideCategory />
+                    <FileCard
+                      file={entry.file}
+                      hideCategory
+                      onEdit={() => {
+                        setEditingFile(entry.file);
+                        setEditName(entry.file.name);
+                        setEditCategory(entry.file.category);
+                        setEditNewLabel("");
+                      }}
+                      onDelete={() => setPendingFileDelete(entry.file)}
+                    />
                   )}
                 </li>
               ))}
-          </ul>
+            </ul>
         )}
+        {fileModals}
       </div>
     );
   }

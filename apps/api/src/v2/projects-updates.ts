@@ -370,8 +370,8 @@ function serializeUpdate(row: Record<string, unknown>) {
   return {
     id: row.id,
     projectId: row.project_id,
-    authorId: row.author_id,
-    authorName: row.author_name || row.author_email || "",
+    authorId: row.author_id ?? null,
+    authorName: row.author_name || row.author_email || "Autor removido",
     type: row.type || "UPDATE",
     title: row.title || "",
     content: row.content,
@@ -404,7 +404,7 @@ v2UpdatesRouter.get("/", requireAuth, async (req, res) => {
       `SELECT u.*, usr.email AS author_email, COALESCE(usr.name, usr.email) AS author_name
        FROM updates u
        INNER JOIN projects p ON p.id = u.project_id
-       INNER JOIN users usr ON usr.id = u.author_id
+       LEFT JOIN users usr ON usr.id = u.author_id
        WHERE ${f.sql}${extra}
        ORDER BY u.created_at DESC
        LIMIT 500`,

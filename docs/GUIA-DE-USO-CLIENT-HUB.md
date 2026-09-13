@@ -1,7 +1,7 @@
 # Guia de uso — Avadesk
 
 Tutorial prático para o **dono (ADMIN)** e para o **CLIENTE**.  
-Atualizado em 12/09/2026 · marca Avadesk · Acesso e Ambientes no admin · live no portal (SSE) · e-mail no login do cliente · avatar do header abre o perfil (leitura; Editar para alterar) · dados no Postgres relacional (`/v2`). Sessão HttpOnly. E-mail Resend + Web Push.
+Atualizado em 13/09/2026 · marca Avadesk · Acesso e Ambientes no admin · live no portal (SSE) · e-mail no login do cliente · avatar do header abre o perfil (leitura; Editar para alterar) · no portal o header não mostra CLIENT · dados no Postgres relacional (`/v2`). Sessão HttpOnly. E-mail Resend + Web Push.
 
 ---
 
@@ -45,7 +45,7 @@ Esqueci a senha: `/forgot-password` envia um e-mail com visual Avadesk (se o e-m
 
 Quando o admin cria o seu usuário, chega um e-mail de **boas-vindas** (obrigado, como entrar, chamados). A senha temporária **não** vem no e-mail — só no diálogo do admin.
 
-Após o login, no celular aparece **Ativar alertas**. Toque e aceite. Sem isso o aviso fica só no sino. No iPhone: Compartilhar → Adicionar à Tela de Início, abra pelo ícone (iOS 16.4+) e então ative. Também dá para ativar em **Configurações**.
+Após o login, no celular aparece **Ativar alertas**. Toque e aceite: o cartão some na hora. Sem isso o aviso fica só no sino. No iPhone: Compartilhar → Adicionar à Tela de Início, abra pelo ícone (iOS 16.4+) e então ative. Também dá para ativar em **Configurações** (o cartão de baixo some igual). **Agora não** ou o **X** fecham sem ativar.
 
 A tela de login **não mostra** e-mail nem senha de exemplo. O cartão usa o título **Acesse sua conta**; a marca Avadesk fica no rodapé do card.
 
@@ -137,9 +137,11 @@ O cliente também pode abrir sozinho em `/client/chamados` ou no projeto. Lá a 
 ### 3.7 Arquivos (inclui documentação)
 
 - `/admin/files` — abra o **projeto** (card), depois a **pasta** (Documentação, Outros ou uma categoria que você criar, ex. Nota fiscal).
+- No arquivo: **Baixar**, **Editar** (nome e pasta) e **Excluir** (some do portal e do disco; pede confirmação).
+- Cliente em `/client/files` só **Baixa**.
 - Envie arquivos no nível da pasta ou do projeto (projeto já escolhido). Disco privado `apps/api/storage`; download exige login.
 - **Nova categoria…** (nome, 2–60 caracteres) vira uma pasta **só naquele projeto**. Ex.: “Nota fiscal”.
-- Manuais e contrato: envie na pasta **Documentação**. Fichas antigas de Docs também aparecem nessa pasta.
+- Manuais e contrato: envie na pasta **Documentação**. Fichas antigas de Docs também aparecem nessa pasta (dá para renomear o título ou excluir).
 - `/admin/documentation` redireciona para Arquivos (o menu Docs não existe mais).
 
 ### 3.9 Notificações
@@ -165,9 +167,10 @@ A lista em **Usuários** mostra a equipe (ADMIN, MANAGER) e os logins CLIENT. Fi
    - Instagram da empresa (opcional)
    - Instagram pessoal (opcional)
 9. Depois disso a senha temporária **deixa de funcionar**.
-10. Use o switch **Ativo** para desativar acesso sem apagar o usuário (o sistema mantém o vínculo com a empresa).
-11. Para **ver ou editar**: clique no nome ou em **Abrir**. Na ficha mude nome, e-mail, papel, empresa, projetos e ativo, depois **Salvar alterações**.
-12. Para **trocar a senha**: na ficha, bloco Senha → digite (ou **Gerar**) → **Definir senha**. A senha aparece uma vez no diálogo do centro. Não vai por e-mail. Uma sessão já aberta pode continuar até expirar; desative a conta se precisar bloquear agora.
+10. Use o switch **Ativo** para desativar acesso sem apagar o usuário (o sistema mantém o vínculo com a empresa). Desativar o último administrador ativo é recusado.
+11. Para **ver ou editar**: clique no nome ou em **Editar**. Na ficha mude nome, e-mail, papel, empresa, projetos e ativo, depois **Salvar alterações**.
+12. Para **excluir de verdade**: **Excluir** na lista ou na ficha → confirme. O login some. Não dá para excluir a própria conta. Gerente não exclui administrador. Updates antigos ficam como **Autor removido**.
+13. Para **trocar a senha**: na ficha, bloco Senha → digite (ou **Gerar**) → **Definir senha**. A senha aparece uma vez no diálogo do centro. Não vai por e-mail. Uma sessão já aberta pode continuar até expirar; desative a conta se precisar bloquear agora.
 
 Fluxo mínimo para o cliente ver o hub:
 
@@ -276,7 +279,7 @@ Quando há projeto:
 
 ### 4.9 Perfil
 
-- No header, o círculo com a sua letra (e o nome no computador) abre `/client/profile`.
+- No header, o círculo com a sua letra (e o nome no computador) abre `/client/profile`. O portal **não** mostra o rótulo CLIENT ao lado do nome.
 - A tela abre em **leitura**. **Editar** na conta altera o nome de exibição; **Editar** na empresa abre a ficha. **Cancelar** descarta sem gravar.
 - **Sua conta:** e-mail de login, Instagrams (se informados no onboarding) e **nome de exibição**.
 - **Dados da empresa:** nome, e-mail de contato, telefone e WhatsApp (obrigatórios ao salvar); CNPJ, empresa, segmento e mais informações opcionais. Se faltar obrigatório, aparece o aviso **Complete os dados da empresa**.

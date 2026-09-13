@@ -36,6 +36,24 @@ import { lookupCnpj } from "../lib/cnpj-lookup.js";
 
 const uuid = z.string().uuid();
 
+const LAST_ADMIN_PATCH_MSG =
+  "Não é possível desativar ou rebaixar o último administrador ativo.";
+const LAST_ADMIN_DELETE_MSG = "Não é possível excluir o último administrador.";
+
+async function remainingAdminCount(excludeId: string, onlyActive: boolean): Promise<number> {
+  const sql = onlyActive
+    ? `SELECT COUNT(*)::int AS n FROM users WHERE role = 'admin' AND active = TRUE AND id <> $1`
+    : `SELECT COUNT(*)::int AS n FROM users WHERE role = 'admin' AND id <> $1`;
+  const row = await query<{ n: number }>(sql, [excludeId]);
+  return Number(row.rows[0]?.n ?? 0);
+}
+
+function isEnoent(err: unknown): boolean {
+  return Boolean(
+    err && typeof err === "object" && "code" in err && (err as { code: string }).code === "ENOENT"
+  );
+}
+
 export const v2ClientsRouter = Router();
 
 const cnpjLimiter = rateLimit({
@@ -454,6 +472,17 @@ v2UsersRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async 
     }
 
     const nextInitials = parsed.data.name ? parsed.data.name.slice(0, 2).toUpperCase() : null;
+    const nextActive = parsed.data.active ?? Boolean(existing.active);
+    if (
+      String(existing.role) === "admin" &&
+      Boolean(existing.active) &&
+      (nextActive === false || nextRole !== "admin")
+    ) {
+      const n = await remainingAdminCount(id.data, true);
+      if (n === 0) {
+        return sendError(res, 409, "CONFLICT", LAST_ADMIN_PATCH_MSG);
+      }
+    }
 
     await query(
       `UPDATE users SET
@@ -493,6 +522,36 @@ v2UsersRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async 
     return res.json({ user });
   } catch (err) {
     return handleRouteError(res, err, "[v2/users:patch]");
+  }
+});
+
+v2UsersRouter.delete("/:id", requireAuth, requireRole("admin", "manager"), async (req, res) => {
+  const id = uuid.safeParse(req.params.id);
+  if (!id.success) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+  try {
+    const current = await query<{ id: string; role: string }>(
+      `SELECT id, role FROM users WHERE id = $1`,
+      [id.data]
+    );
+    const existing = current.rows[0];
+    if (!existing) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    if (req.user!.id === id.data) {
+      return sendError(res, 400, "VALIDATION", "Você não pode excluir a própria conta.");
+    }
+    if (req.user!.role === "manager" && existing.role === "admin") {
+      return sendError(res, 403, "FORBIDDEN", "Sem permissão.");
+    }
+    if (existing.role === "admin") {
+      const n = await remainingAdminCount(id.data, false);
+      if (n === 0) {
+        return sendError(res, 409, "CONFLICT", LAST_ADMIN_DELETE_MSG);
+      }
+    }
+    await query(`DELETE FROM users WHERE id = $1`, [id.data]);
+    await writeAudit(req.user!.id, "delete_user", "user", id.data);
+    return res.json({ ok: true });
+  } catch (err) {
+    return handleRouteError(res, err, "[v2/users:delete]");
   }
 });
 
@@ -967,6 +1026,52 @@ v2DocumentsRouter.post("/:id/versions", requireAuth, requireRole("admin", "manag
   }
 });
 
+v2DocumentsRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async (req, res) => {
+  const id = uuid.safeParse(req.params.id);
+  if (!id.success) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+  const parsed = z.object({ title: z.string().trim().min(1).max(200) }).safeParse(req.body);
+  if (!parsed.success) return sendError(res, 400, "VALIDATION", "Dados inválidos.");
+  try {
+    const doc = await query<{ project_id: string }>(`SELECT project_id FROM documents WHERE id = $1`, [
+      id.data,
+    ]);
+    if (!doc.rows[0]) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    const project = await getAccessibleProject(req.user!, doc.rows[0].project_id);
+    await query(`UPDATE documents SET title = $2 WHERE id = $1`, [id.data, parsed.data.title]);
+    await writeAudit(req.user!.id, "update_document", "document", id.data);
+    publishLive({
+      reason: "file",
+      clientId: project.client_id,
+      actorId: req.user!.id,
+    });
+    return res.json({ document: await documentDto(id.data) });
+  } catch (err) {
+    return handleRouteError(res, err, "[v2/documents:patch]");
+  }
+});
+
+v2DocumentsRouter.delete("/:id", requireAuth, requireRole("admin", "manager"), async (req, res) => {
+  const id = uuid.safeParse(req.params.id);
+  if (!id.success) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+  try {
+    const doc = await query<{ project_id: string }>(`SELECT project_id FROM documents WHERE id = $1`, [
+      id.data,
+    ]);
+    if (!doc.rows[0]) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    const project = await getAccessibleProject(req.user!, doc.rows[0].project_id);
+    await query(`DELETE FROM documents WHERE id = $1`, [id.data]);
+    await writeAudit(req.user!.id, "delete_document", "document", id.data);
+    publishLive({
+      reason: "file",
+      clientId: project.client_id,
+      actorId: req.user!.id,
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    return handleRouteError(res, err, "[v2/documents:delete]");
+  }
+});
+
 export const v2FilesRouter = Router();
 
 function fileDto(f: Record<string, unknown>) {
@@ -1063,6 +1168,90 @@ v2FilesRouter.post("/", requireAuth, requireRole("admin", "manager"), async (req
     return res.status(201).json({ file: fileDto(row.rows[0]) });
   } catch (err) {
     return handleRouteError(res, err, "[v2/files:create]");
+  }
+});
+
+const filePatchSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    category: z.string().max(40).optional(),
+    categoryLabel: z.string().max(80).optional(),
+  })
+  .refine((d) => d.name !== undefined || d.category !== undefined || d.categoryLabel !== undefined);
+
+v2FilesRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async (req, res) => {
+  const id = uuid.safeParse(req.params.id);
+  if (!id.success) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+  const parsed = filePatchSchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, 400, "VALIDATION", "Dados inválidos.");
+  try {
+    const existing = await query(`SELECT * FROM files WHERE id = $1`, [id.data]);
+    if (!existing.rows[0]) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    const project = await getAccessibleProject(req.user!, existing.rows[0].project_id as string);
+    const nextName =
+      parsed.data.name !== undefined
+        ? safeOriginalName(parsed.data.name)
+        : String(existing.rows[0].original_name);
+    let nextCategory = String(existing.rows[0].category);
+    let nextLabel = (existing.rows[0].category_label as string | null) ?? null;
+    if (parsed.data.category !== undefined || parsed.data.categoryLabel !== undefined) {
+      const resolved = resolveWriteCategory({
+        category: parsed.data.category,
+        categoryLabel: parsed.data.categoryLabel,
+      });
+      if (!resolved.ok) return sendError(res, 400, "VALIDATION", resolved.message);
+      nextCategory = resolved.category;
+      nextLabel = resolved.categoryLabel;
+    }
+    await query(
+      `UPDATE files SET original_name = $2, category = $3, category_label = $4 WHERE id = $1`,
+      [id.data, nextName, nextCategory, nextLabel]
+    );
+    const row = await query(`SELECT * FROM files WHERE id = $1`, [id.data]);
+    await writeAudit(req.user!.id, "update_file", "file", id.data);
+    publishLive({
+      reason: "file",
+      clientId: project.client_id,
+      actorId: req.user!.id,
+    });
+    return res.json({ file: fileDto(row.rows[0]) });
+  } catch (err) {
+    return handleRouteError(res, err, "[v2/files:patch]");
+  }
+});
+
+v2FilesRouter.delete("/:id", requireAuth, requireRole("admin", "manager"), async (req, res) => {
+  const id = uuid.safeParse(req.params.id);
+  if (!id.success) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+  try {
+    const existing = await query<{
+      project_id: string;
+      stored_name: string;
+    }>(`SELECT project_id, stored_name FROM files WHERE id = $1`, [id.data]);
+    if (!existing.rows[0]) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    const project = await getAccessibleProject(req.user!, existing.rows[0].project_id);
+    const stored = existing.rows[0].stored_name;
+    if (!/^[0-9a-f-]{36}$/i.test(stored) && stored !== id.data) {
+      return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    }
+    const root = storageRoot();
+    const abs = path.join(root, stored);
+    if (!abs.startsWith(root)) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    try {
+      await fs.unlink(abs);
+    } catch (err) {
+      if (!isEnoent(err)) throw err;
+    }
+    await query(`DELETE FROM files WHERE id = $1`, [id.data]);
+    await writeAudit(req.user!.id, "delete_file", "file", id.data);
+    publishLive({
+      reason: "file",
+      clientId: project.client_id,
+      actorId: req.user!.id,
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    return handleRouteError(res, err, "[v2/files:delete]");
   }
 });
 
@@ -1165,7 +1354,7 @@ v2BootstrapRouter.get("/", requireAuth, async (req, res) => {
           `SELECT u.*, usr.email AS author_email, COALESCE(usr.name, usr.email) AS author_name
            FROM updates u
            INNER JOIN projects p ON p.id = u.project_id
-           INNER JOIN users usr ON usr.id = u.author_id
+           LEFT JOIN users usr ON usr.id = u.author_id
            WHERE ${f.sql}${isStaff(user) ? "" : " AND u.visible_to_client = TRUE"}
            ORDER BY u.created_at DESC LIMIT 300`,
           f.params
@@ -1237,7 +1426,7 @@ v2BootstrapRouter.get("/", requireAuth, async (req, res) => {
         id: u.id,
         projectId: u.project_id,
         authorId: u.author_id,
-        authorName: u.author_name || u.author_email,
+        authorName: u.author_name || u.author_email || "Autor removido",
         type: u.type || "UPDATE",
         title: u.title || "",
         content: u.content,

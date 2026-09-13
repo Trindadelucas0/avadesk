@@ -35,7 +35,7 @@ updatesRouter.get("/project/:projectId", requireAuth, async (req, res) => {
         `SELECT u.id, u.project_id, u.author_id, u.content, u.status, u.visible_to_client, u.created_at,
                 usr.email AS author_email
          FROM updates u
-         INNER JOIN users usr ON usr.id = u.author_id
+         LEFT JOIN users usr ON usr.id = u.author_id
          WHERE u.project_id = $1 AND u.visible_to_client = TRUE
          ORDER BY u.created_at DESC`,
         [projectId]
@@ -48,7 +48,7 @@ updatesRouter.get("/project/:projectId", requireAuth, async (req, res) => {
       `SELECT u.id, u.project_id, u.author_id, u.content, u.status, u.visible_to_client, u.created_at,
               usr.email AS author_email
        FROM updates u
-       INNER JOIN users usr ON usr.id = u.author_id
+       LEFT JOIN users usr ON usr.id = u.author_id
        WHERE u.project_id = $1
        ORDER BY u.created_at DESC`,
       [projectId]

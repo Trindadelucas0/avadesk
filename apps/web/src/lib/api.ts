@@ -44,7 +44,7 @@ export interface Project {
 export interface UpdateItem {
   id: string;
   project_id: string;
-  author_id: string;
+  author_id: string | null;
   content: string;
   status: "planejado" | "em_andamento" | "concluido";
   visible_to_client: boolean;

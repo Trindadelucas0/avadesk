@@ -2,8 +2,8 @@
 
 | Item | Valor |
 |------|--------|
-| Versão do sistema | 3.15.6 — Chamados |
-| Última atualização | 12/09/2026 (PDF do chamado só staff; cliente 404) |
+| Versão do sistema | 3.16.0 — Usuários e arquivos |
+| Última atualização | 13/09/2026 (editar/excluir usuário e arquivo) |
 | Fonte oficial | Este arquivo |
 | Guia de uso | [docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md) |
 | PRD / wireframes | [docs/PRD-NEXUS-PORTAL-CLIENTE.md](docs/PRD-NEXUS-PORTAL-CLIENTE.md) |
@@ -32,6 +32,8 @@ Tutorial: **[docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md)**.
 
 | Versão | Nome | Mudança |
 |--------|------|---------|
+| 3.16.0 | Usuários e arquivos | Lista de usuários: **Editar** (ficha) e **Excluir** (apaga o login, com confirmação). Não apaga a si mesmo; MANAGER não apaga ADMIN; último admin não some (409). Switch Ativo permanece; desativar o último admin ativo também 409. `updates.author_id` fica NULL se o autor for excluído (`012_user_delete_and_file_crud.sql`). Arquivos (pasta Documentação e demais): staff **renomeia**, **muda de pasta** e **exclui** (disco + linha). Fichas `documents`: título e exclusão. Cliente continua só **Baixar**. |
+| 3.15.9 | Chamados | Card resolvido (cliente): **Confirmar** e **Ainda não está ok** em `flex-wrap`; texto pode quebrar no botão (`whitespace-normal`). Não cortam no card estreito (lista em 2 colunas). Sem mudança de API. |
 | 3.15.6 | Chamados | **Baixar PDF** só no card do staff (`mode=admin`). `GET /v2/tickets/:id/pdf`: CLIENT 404 (não revela o recurso); staff 200; outro tenant 404; sem sessão 401. Portal do cliente sem o botão. |
 | 3.15.5 | Chamados | iOS: meta `apple-mobile-web-app-capable` (Next 15 só emitia `mobile-web-app-capable`). Manifest com `id`/`scope` e ícones `any` separados de `maskable`. SW iOS sem vibrate. `GET /health` diz se e-mail e push estão configurados. Sem `RESEND_API_KEY` o outbox fica `logged` (não envia). Sem VAPID o Web Push não inscreve. |
 | 3.15.4 | Chamados | Alerta PWA passa a aparecer na tela do celular: envio `urgency=high`, `showNotification` com vibrate/renotify, permissão só com toque em **Ativar alertas**, SW `avadesk-shell-v6` sem cache HTTP. iOS continua exigindo ícone na tela inicial (16.4+). |
@@ -123,6 +125,7 @@ Seed: `npm run seed` **não apaga** clientes, usuários, projetos nem updates. S
 | Clientes API | `apps/api/src/v2/rest.ts` (`GET/POST/PATCH /v2/clients`, `GET /v2/clients/cnpj/:cnpj`) |
 | Migration tickets | `db/migrations/004_tickets.sql` |
 | Migration tipo Outra coisa | `db/migrations/011_ticket_type_other.sql` |
+| Migration exclusão de usuário | `db/migrations/012_user_delete_and_file_crud.sql` (`updates.author_id` SET NULL) |
 | Migration mensagens chamado | `db/migrations/008_ticket_messages.sql` |
 | Chamados API | `apps/api/src/v2/tickets.ts` |
 | PDF do chamado | `apps/api/src/lib/ticket-pdf.ts` (`GET /v2/tickets/:id/pdf`) |
@@ -171,7 +174,7 @@ Seed: `npm run seed` **não apaga** clientes, usuários, projetos nem updates. S
 
 ### Client / Admin
 
-Rotas UI permanecem `/client/*` e `/admin/*`. Home admin: **Visão geral** (`/admin`). Kanban de chamados: `/admin/chamados`. Cliente: `/client/chamados` (lista). `/admin/tasks` e `/client/tasks` redirecionam. Bottom nav cliente: Início / Evolução / Acesso. Header: círculo com iniciais + nome → `/client/profile` (CLIENT) ou `/admin/profile` (ADMIN/MANAGER); o botão Sair ao lado só faz logout.
+Rotas UI permanecem `/client/*` e `/admin/*`. Home admin: **Visão geral** (`/admin`). Kanban de chamados: `/admin/chamados`. Cliente: `/client/chamados` (lista). `/admin/tasks` e `/client/tasks` redirecionam. Bottom nav cliente: Início / Evolução / Acesso. Header: círculo com iniciais + nome → `/client/profile` (CLIENT) ou `/admin/profile` (ADMIN/MANAGER). No portal, o header **não** mostra o papel `CLIENT`; staff continua vendo `ADMIN`/`MANAGER` abaixo do nome. O botão Sair ao lado só faz logout.
 
 ## 6. Telas e fluxos
 
@@ -181,7 +184,7 @@ E-mail + senha → BFF grava cookie HttpOnly em :3000 → diálogo no **centro**
 
 ### 6.1.1 Usuários (admin)
 
-Lista em `/admin/users` mostra **todos** os papéis. Empty state só quando não há nenhum usuário. Filtro local Todos / CLIENT / MANAGER / ADMIN + busca nome/e-mail: filtro vazio mostra texto curto, não esconde a página. Nome e **Abrir** levam à ficha `/admin/users/:id`. Criar usuário: sucesso abre diálogo no **centro** com e-mail, senha temporária, **Copiar acesso** e **Fechar**. Também dispara e-mail de **boas-vindas** (agradecimento, como usar o portal, CTA `/login`). **A senha não vai no e-mail.** Switch **Ativo** na lista chama `PATCH /v2/users/:id` sem soltar o `client_id` do CLIENT. Reusar um e-mail já cadastrado atualiza o registro (promover a ADMIN/MANAGER zera a empresa).
+Lista em `/admin/users` mostra **todos** os papéis. Empty state só quando não há nenhum usuário. Filtro local Todos / CLIENT / MANAGER / ADMIN + busca nome/e-mail: filtro vazio mostra texto curto, não esconde a página. Nome e **Editar** levam à ficha `/admin/users/:id`. **Excluir** (lista e ficha) pede confirmação e chama `DELETE /v2/users/:id` — some o login; e-mail fica livre. Não dá para excluir a própria conta (400). MANAGER não exclui ADMIN (403). Último usuário `role=admin` não é excluído (409). Updates antigos ficam com `author_id` nulo (UI: **Autor removido**). Criar usuário: sucesso abre diálogo no **centro** com e-mail, senha temporária, **Copiar acesso** e **Fechar**. Também dispara e-mail de **boas-vindas** (agradecimento, como usar o portal, CTA `/login`). **A senha não vai no e-mail.** Switch **Ativo** na lista chama `PATCH /v2/users/:id` sem soltar o `client_id` do CLIENT. Desativar ou rebaixar o último **admin ativo** → 409. Reusar um e-mail já cadastrado atualiza o registro (promover a ADMIN/MANAGER zera a empresa).
 
 Ficha: seções Identidade, Acesso, Conta (**Salvar alterações** → `PATCH`) e Senha (**Definir senha** → `POST /v2/users/:id/password`, 8–200, rate limit 10/15 min). Senha nova aparece uma vez no `CenterNotice` (copiar). Hash nunca volta na API. Cookie HMAC antigo pode valer até 7d; desativar a conta bloqueia o próximo request.
 
@@ -189,12 +192,13 @@ Ficha: seções Identidade, Acesso, Conta (**Salvar alterações** → `PATCH`) 
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
 | Lista | Filtro papel | Todos / CLIENT / MANAGER / ADMIN | Não | Staff | local | tabela | Esconde linhas, não a página | Empty do filtro ≠ empty global | `apps/web/src/app/admin/users/page.tsx` |
 | Lista | Busca | Nome ou e-mail | Não | Staff | local | tabela | `includes` case-insensitive | — | `apps/web/src/app/admin/users/page.tsx` |
-| Lista | Abrir | Link da ficha | Sim | Staff | `User.id` | `/admin/users/:id` | `GET /v2/users/:id` | CLIENT 403 | `apps/web/src/app/admin/users/[id]/page.tsx` |
+| Lista | Editar | Link da ficha | Sim | Staff | `User.id` | `/admin/users/:id` | `GET /v2/users/:id` | CLIENT 403 | `apps/web/src/app/admin/users/[id]/page.tsx` |
+| Lista / ficha | Excluir | Apaga o login | Não | Staff | `User.id` | `DELETE /v2/users/:id` | Modal de confirmação; some da lista | Própria conta 400; MANAGER→ADMIN 403; último admin 409 | `apps/api/src/v2/rest.ts` |
 | Identidade | Nome | Nome de exibição | Sim (edição) | Staff | `users.name` | PATCH | Recalcula iniciais | 1–120 | `apps/api/src/v2/rest.ts` |
 | Identidade | E-mail | Login | Sim | Staff | `users.email` | PATCH | `lower/trim`; unique | 400 se outro id já usa | `PATCH /v2/users/:id` |
 | Acesso | Papel | ADMIN / MANAGER / CLIENT | Sim | Staff | `users.role` | PATCH | Staff zera empresa | CLIENT exige `clientId` | `users_client_role_check` |
 | Acesso | Empresa / projetos | Escopo CLIENT | Condicional | Staff | `client_id` + `user_project_access` | PATCH | “Todos” ou lista | Sem projeto marcado e sem “todos” → toast | ficha |
-| Conta | Ativo | Liga/desliga login | Sim | Staff | `users.active` | PATCH | Inativo → 401 no próximo request | CLIENT 403 | `getUserFromRequest` |
+| Conta | Ativo | Liga/desliga login | Sim | Staff | `users.active` | PATCH | Inativo → 401 no próximo request | CLIENT 403; último admin ativo → 409 | `getUserFromRequest` |
 | Senha | Nova / Confirmar / Gerar | Define hash | Sim no bloco | Staff | form | `POST /v2/users/:id/password` | bcrypt 12; diálogo com senha uma vez | min 8; sem e-mail; rate limit | `apps/web/src/app/admin/users/[id]/page.tsx` |
 
 ### 6.1.2 Recuperar senha
@@ -272,7 +276,7 @@ Endpoints: `GET /v2/projects/:id/env`, `PUT /v2/projects/:id/env/:environment`, 
 
 Arquivos no disco, download autenticado. Admin CRUD de releases em `/admin/releases`. Notificações persistidas.
 
-**Arquivos** (`/admin/files` upload, `/client/files` leitura). Três níveis na UI (query `?project=` e `?category=`): cards de **projeto** → cards de **pasta/categoria** → lista de arquivos com data absoluta. Categorias de sistema persistidas: `contrato_documentacao` (rótulo de pasta **Documentação**; no banco o nome longo continua “Contrato e Documentação do Sistema”) e `outro` (**Outros**). O admin cria **categoria personalizada** no upload (`Nova categoria…` + nome, ex. Nota fiscal); o slug vai em `files.category` e o nome em `files.category_label`. A categoria nova **só reaparece no mesmo projeto**. Cliente só vê pastas com pelo menos 1 item. Admin vê pastas de sistema mesmo vazias para poder enviar. Fichas versionadas (`documents`) entram na pasta Documentação daquele projeto. Menu **Docs** não existe; `/client/documentation` e `/admin/documentation` redirecionam para Arquivos. Manuais novos: upload de arquivo na pasta Documentação.
+**Arquivos** (`/admin/files` upload + editar/excluir, `/client/files` leitura). Três níveis na UI (query `?project=` e `?category=`): cards de **projeto** → cards de **pasta/categoria** → lista de arquivos com data absoluta. Categorias de sistema persistidas: `contrato_documentacao` (rótulo de pasta **Documentação**; no banco o nome longo continua “Contrato e Documentação do Sistema”) e `outro` (**Outros**). O admin cria **categoria personalizada** no upload (`Nova categoria…` + nome, ex. Nota fiscal); o slug vai em `files.category` e o nome em `files.category_label`. A categoria nova **só reaparece no mesmo projeto**. Cliente só vê pastas com pelo menos 1 item. Admin vê pastas de sistema mesmo vazias para poder enviar. Fichas versionadas (`documents`) entram na pasta Documentação daquele projeto. Staff **renomeia**, **move de pasta** (`PATCH /v2/files/:id`) e **exclui** (`DELETE /v2/files/:id`: disco + linha; audit `delete_file`). Não troca o binário nem o projeto. Fichas: `PATCH` título e `DELETE /v2/documents/:id` (não apaga o `files` ligado). Menu **Docs** não existe; `/client/documentation` e `/admin/documentation` redirecionam para Arquivos. Manuais novos: upload de arquivo na pasta Documentação.
 
 | Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
@@ -282,7 +286,10 @@ Arquivos no disco, download autenticado. Admin CRUD de releases em `/admin/relea
 | Admin Arquivos | Nome da categoria | Rótulo da pasta nova | Condicional | Admin | input | `files.category_label` | Gera slug (ex. Nota fiscal → `nota_fiscal`) | 2–60 chars; sem controle; slug reservado → 400; upload bloqueado se vazio | `apps/web/src/app/admin/files/page.tsx` |
 | Cliente Arquivos | Card do projeto | Sistemas que o login vê | Sim | — | `clientAccessibleProjects` | `?project=` | Um card por projeto (mesmo vazio) | UUID fora do tenant é ignorado (volta ao nível 1, sem 404) | `apps/web/src/app/client/files/page.tsx` |
 | Cliente Arquivos | Card da categoria | Pastas com arquivo/doc | Não | Admin no upload | arquivos + docs do projeto | `?category=` | Clique abre a lista com data `dd/mm/aaaa` | Sem chip Todos; pasta vazia não aparece | idem |
-| Cliente Arquivos | Lista | Nome, tamanho, data, baixar | — | Admin | `files` / `documents` | `GET /v2/files/:id/download` | Ordenado do mais recente | Download só com sessão e projeto acessível | `apps/web/src/components/hub/cards.tsx` |
+| Cliente Arquivos | Lista | Nome, tamanho, data, baixar | — | Admin | `files` / `documents` | `GET /v2/files/:id/download` | Ordenado do mais recente | Download só com sessão e projeto acessível; sem Editar/Excluir | `apps/web/src/components/hub/cards.tsx` |
+| Admin Arquivos | Editar arquivo | Nome e pasta | Sim no modal | Staff | `files` | `PATCH /v2/files/:id` | Modal; move some da pasta atual | Qualquer CLIENT 403 (rota staff); download de outro tenant 404 | `apps/api/src/v2/rest.ts` |
+| Admin Arquivos | Excluir arquivo | Some do disco e da lista | Não | Staff | `files.id` | `DELETE /v2/files/:id` | Modal de confirmação | CLIENT 403; path só UUID; ENOENT segue | idem |
+| Admin Arquivos | Ficha legado | Título / exclusão | Título no editar | Staff | `documents` | `PATCH`/`DELETE /v2/documents/:id` | Pasta Documentação | Não apaga o arquivo ligado | `apps/web/src/app/admin/files/page.tsx` |
 
 Categorias antigas (`contrato` → `contrato_documentacao`; `briefing` / `design` / `entrega` / desconhecido → `outro`) são normalizadas na leitura. Slug custom válido não é convertido para `outro`. Coluna `category_label`: `db/migrations/006_file_category_label.sql`.
 
@@ -306,8 +313,8 @@ Lista em `/client/chamados`. O cliente só escolhe **Bug** ou **Outra coisa** (�
 | Card expandido | Editar | Corrige tipo, título e campos | Condicional | Quem abriu | PATCH content | `tickets.type` `title` `fields` | Botão só se intacto; form no card | Não-autor 403; outro tenant 404; já iniciado/reaberto 409 | `PATCH /v2/tickets/:id/content` |
 | Card expandido | Baixar PDF | Demanda para o Cursor | Não | Só staff (admin/manager) | GET | arquivo gerado | Texto com rótulos do form + histórico + conversa + nomes das imagens | CLIENT 404 (sem botão); outro tenant 404; sem sessão 401; 30/min (não-staff); não é anexo | `GET /v2/tickets/:id/pdf` |
 | Aviso | E-mail + in-app + push | Copy da etapa (Produção, Resolvido, etc.) | — | Sistema | `notifyUsers` | outbox + `notifications` + Web Push | Omite o ator; falha de envio não desfaz o PATCH | Tenant / staff | `apps/api/src/lib/notify.ts` |
-| Card expandido | Confirmar | Cliente diz que está ok | Condicional | CLIENT | POST confirm | `stage=closed` | `accent` + `lg`; só se `resolved` | Admin 403; outro tenant 404 | `POST /v2/tickets/:id/confirm` |
-| Card expandido | Ainda não está ok | Abre o formulário de reabertura | Condicional | CLIENT | clique | formulário no card | `danger` + `lg`; só se `resolved` | Admin não vê | `ticket-card.tsx` |
+| Card expandido | Confirmar | Cliente diz que está ok | Condicional | CLIENT | POST confirm | `stage=closed` | `accent` + `lg`; `flex-wrap` + texto quebra no botão; só se `resolved` | Admin 403; outro tenant 404 | `POST /v2/tickets/:id/confirm` |
+| Card expandido | Ainda não está ok | Abre o formulário de reabertura | Condicional | CLIENT | clique | formulário no card | `danger` + `lg`; mesmo grupo wrap; só se `resolved` | Admin não vê | `ticket-card.tsx` |
 | Card expandido | O que ainda não está ok? | Motivo da reabertura | Sim (no form) | CLIENT | textarea | POST reopen | Título `text-base`; subtítulo vermelho: volta para Correção | Botão **Reabrir chamado** disabled sem texto | `POST /v2/tickets/:id/reopen` |
 | Card compacto | Selo | Pendência de resposta | Condicional | Sistema | `awaiting_reply_from_user_id` | nome do destinatário | Texto **Aguardando resposta {nome}** | Some quando o cliente responde | `ticket-card.tsx` |
 | Card expandido | Pedir informação | Pergunta ao cliente | Sim (no envio) | admin/manager | textarea + destinatário | `ticket_messages` kind=request | Sempre marca pendência | Chamado `closed` 409; sem CLIENT no projeto 400 | `POST /v2/tickets/:id/messages` |
@@ -323,11 +330,12 @@ Endpoints: `GET/POST /v2/tickets`, `GET/PATCH /v2/tickets/:id`, `GET /v2/tickets
 
 ### 6.8 Perfil (header)
 
-O círculo com iniciais e o nome no header são um único link (`aria-label="Perfil"`). CLIENT vai a `/client/profile`; ADMIN/MANAGER a `/admin/profile`. O botão Sair fica fora do link. Sem ID na URL: o PATCH usa a sessão (`req.user.id`). As telas de perfil próprio abrem em **leitura**. **Editar** mostra o formulário; **Cancelar** restaura o rascunho; **Salvar** chama a API. Conta e ficha da empresa têm Editar independentes. Onboarding (`/client/onboarding`) continua formulário de primeiro acesso.
+O círculo com iniciais e o nome no header são um único link (`aria-label="Perfil"`). CLIENT vai a `/client/profile`; ADMIN/MANAGER a `/admin/profile`. A linha do papel (`session.role`) só aparece para ADMIN/MANAGER; o portal do cliente não mostra `CLIENT`. O botão Sair fica fora do link. Sem ID na URL: o PATCH usa a sessão (`req.user.id`). As telas de perfil próprio abrem em **leitura**. **Editar** mostra o formulário; **Cancelar** restaura o rascunho; **Salvar** chama a API. Conta e ficha da empresa têm Editar independentes. Onboarding (`/client/onboarding`) continua formulário de primeiro acesso.
 
 | Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
-| Header | Avatar + nome | Atalho para o próprio perfil | — | Sessão | `session.avatarInitials` | `/client/profile` ou `/admin/profile` | Clique / Enter navega | Sair não faz parte do link | `apps/web/src/components/hub/app-shell.tsx` |
+| Header | Avatar + nome | Atalho para o próprio perfil | — | Sessão | `session.avatarInitials` | `/client/profile` ou `/admin/profile` | Clique / Enter navega; CLIENT sem linha de papel | Sair não faz parte do link | `apps/web/src/components/hub/app-shell.tsx` |
+| Header | Papel | Enum da sessão abaixo do nome | — | Só staff | `session.role` | — | ADMIN/MANAGER vêem o papel; CLIENT não | Não muda permissão | `apps/web/src/components/hub/app-shell.tsx` |
 | Perfil | Nome de exibição | Nome na sessão e nas iniciais | Sim (3–120) | Usuário logado | `PATCH /v2/auth/me` | `users.name` + `avatar_initials` | Leitura default; Editar → input; Cancelar descarta; Recalcula iniciais no servidor | Só a própria conta; sem ID na URL; input só no modo edição | `apps/web/src/components/hub/own-profile-card.tsx` |
 | Perfil cliente | Instagram | Leitura | Não | Onboarding | `users` | — | Só se preenchido | Não altera login | `apps/web/src/app/client/profile/page.tsx` |
 | Perfil cliente | Dados da empresa | Ficha compartilhada do tenant | Nome, e-mail, telefone, WhatsApp sim; resto não | Cliente logado | `PATCH /v2/clients/:id` | `clients` | Leitura default (`—` se vazio); aviso se faltar obrigatório; Editar abre `ClientDataFields`; e-mail de contato ≠ e-mail de login | Só `id = session.client_id`; outro tenant 404; CLIENT não POST | `apps/web/src/app/client/profile/page.tsx` |
@@ -354,13 +362,13 @@ Toque no alerta do sistema/PWA: o service worker abre o `href` relativo e o `Pus
 
 O envio Web Push usa `TTL` 24h e `urgency: high` para o celular acordar e mostrar o banner na tela (não só no sino in-app). O `showNotification` inclui `vibrate`, `renotify` e `requireInteraction`.
 
-Permissão: depois do login aparece o cartão **Ativar alertas**. O pedido ao sistema só roda no toque (iOS recusa pedido automático). Se a permissão já foi dada, o app reinscreve sozinho. iPhone: é preciso abrir pelo ícone da tela inicial (Safari na aba não recebe push). Em `/client/settings` o botão **Ativar alertas na tela do celular** faz o mesmo gesto.
+Permissão: depois do login aparece o cartão **Ativar alertas**. O pedido ao sistema só roda no toque (iOS recusa pedido automático). Ao aceitar a permissão o cartão **some na hora** (não espera o `POST /v2/push/subscribe`). Se a inscrição falhar depois, o card não volta. **Agora não** / **X** também fecham. Se a permissão já foi dada, o app reinscreve sozinho e o cartão não reaparece. iPhone: é preciso abrir pelo ícone da tela inicial (Safari na aba não recebe push). Em `/client/settings` o botão **Ativar alertas na tela do celular** faz o mesmo gesto e fecha o cartão de baixo.
 
 `POST /v2/notifications` (staff) e updates visíveis ao cliente também enviam Web Push, além de `notifyUsers` nos chamados.
 
 | Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
-| Ativar | Botão **Ativar alertas** | Pedido de permissão + `push_subscriptions` | Condicional | Destinatário | gesto do usuário | `POST /v2/push/subscribe` | Só no toque; iOS precisa do PWA na tela inicial | Sem gesto → iOS nega; Android 13 pode silenciar | `apps/web/src/lib/web-push-subscribe.ts` |
+| Ativar | Botão **Ativar alertas** | Pedido de permissão + `push_subscriptions` | Condicional | Destinatário | gesto do usuário | `POST /v2/push/subscribe` | Só no toque; o card some ao aceitar a permissão; iOS precisa do PWA na tela inicial | Sem gesto → iOS nega; Android 13 pode silenciar; inscrição `unavailable` não reabre o card | `apps/web/src/components/pwa-register.tsx` |
 | Alerta SO | Título / corpo | Texto do aviso | — | Sistema ou admin | payload Web Push | `CenterNotice` | Só no toque do alerta | `href` só path `/…`, sem `//` nem URL absoluta | `apps/web/public/sw.js` |
 | Destino | href | Tela aberta atrás do popup | Sim (default `/client`) | Admin ou sistema | `notifications.href` | rota interna | SW sanitiza; API rejeita externo | Open redirect → `/` ou `/admin`/`/client` | `apps/api/src/lib/push-href.ts` |
 | Lista | Item | Aviso persistido | — | Destinatário | bootstrap | `Link` `item.href` | Marca lida no clique | Sem overlay | `apps/web/src/components/hub/cards.tsx` |
@@ -434,7 +442,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - [ ] Chamado: abrir sem imagem; anexar PNG; SVG/PDF 400; outro tenant 404 no download; Implementação sem Prazo desejado
 - [ ] Card expandido: **Baixar PDF** só no admin (aberto e Concluídos); portal cliente sem botão; CLIENT GET pdf 404; staff 200; outro tenant 404; sem sessão 401; PDF contém rótulos do form
 - [ ] Chamado intacto: autor (cliente ou admin) vê **Editar** e grava; outro usuário 403; após Produção ou Reabrir some o botão (API 409)
-- [ ] Chamado `resolved` (cliente): Confirmar `accent`/`lg`; Ainda não está ok `danger`/`lg`; form com subtítulo vermelho; Reabrir disabled sem nota
+- [ ] Chamado `resolved` (cliente): Confirmar `accent`/`lg`; Ainda não está ok `danger`/`lg`; os dois rótulos inteiros no card estreito (wrap, sem corte); form com subtítulo vermelho; Reabrir disabled sem nota
 - [ ] Card compacto expande no clique; um aberto por vez
 - [ ] Aba nova sem `localStorage`: hub abre **claro**, sem flash escuro; F5 mantém o tema escolhido
 - [ ] Sol/Lua no header e cards de Aparência (`/client/settings` e `/admin/settings`) mudam o mesmo valor; toast e `meta[name="theme-color"]` acompanham
@@ -450,7 +458,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - [ ] Switch Ativo em `/admin/users` em um CLIENT: 200, empresa permanece; CLIENT não GET/PATCH `/v2/users` nem POST senha
 - [ ] Chamado → Produção: in-app “em produção” + e-mail; ator não recebe
 - [ ] `GET /health` → `ok`; `email` e `push` true só com `RESEND_API_KEY` e VAPID no `.env`
-- [ ] Login: cartão **Ativar alertas** (toque) grava `push_subscriptions` (`POST /v2/push/subscribe`); iOS na aba do Safari mostra o aviso de tela inicial, não o pedido de permissão
+- [ ] Login: cartão **Ativar alertas** (toque) some ao aceitar a permissão do aparelho; grava `push_subscriptions` (`POST /v2/push/subscribe`) em seguida; se a inscrição falhar o card não volta; iOS na aba do Safari mostra o aviso de tela inicial, não o pedido de permissão
 - [ ] App fechado no celular: avanço de chamado/update gera banner na tela (não só o sino); toque abre href + `CenterNotice`
 - [ ] Home `/admin`: 4 KPIs = SQL; CLIENT 403 em `GET /v2/admin/overview`; deep link `?stage=` nos chamados
 - [ ] Admin salva URL/usuário/senha em `/admin/access`; cliente revela a mesma senha; lista sem plaintext

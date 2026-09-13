@@ -84,7 +84,10 @@ interface HubStore extends MockStoreState {
   completeClientProfile: (
     input: CompleteClientProfileInput
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
-  toggleUserActive: (userId: string) => Promise<void>;
+  toggleUserActive: (
+    userId: string
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  deleteUser: (userId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   refreshUsers: () => Promise<void>;
   fetchUser: (userId: string) => Promise<User | null>;
   updateUser: (
@@ -108,6 +111,16 @@ interface HubStore extends MockStoreState {
   ) => Promise<void>;
   addDocumentVersion: (documentId: string, version: string, note: string) => Promise<void>;
   addFile: (file: Omit<FileItem, "id" | "uploadedAt"> & { contentBase64?: string }) => Promise<void>;
+  updateFile: (
+    id: string,
+    data: { name?: string; category?: string; categoryLabel?: string }
+  ) => Promise<{ ok: true; file: FileItem } | { ok: false; error: string }>;
+  deleteFile: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  updateDocument: (
+    id: string,
+    data: { title: string }
+  ) => Promise<{ ok: true; document: DocumentItem } | { ok: false; error: string }>;
+  deleteDocument: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   upsertRelease: (data: {
     id?: string;
     projectId: string;
@@ -515,18 +528,33 @@ export const useHubStore = create<HubStore>()((set, get) => ({
 
   toggleUserActive: async (userId) => {
     const current = get().users.find((u) => u.id === userId);
-    if (!current) return;
-    const res = await v2<{ user: User }>(`/users/${userId}`, {
-      method: "PATCH",
-      json: {
-        email: current.email,
-        name: current.name,
-        role: current.role,
-        clientId: current.clientId,
-        active: !current.active,
-      },
-    });
-    applyUser(set, res.user);
+    if (!current) return { ok: false, error: "Usuário não encontrado." };
+    try {
+      const res = await v2<{ user: User }>(`/users/${userId}`, {
+        method: "PATCH",
+        json: {
+          email: current.email,
+          name: current.name,
+          role: current.role,
+          clientId: current.clientId,
+          active: !current.active,
+        },
+      });
+      applyUser(set, res.user);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof ApiError ? err.message : "Não foi possível atualizar." };
+    }
+  },
+
+  deleteUser: async (userId) => {
+    try {
+      await v2(`/users/${userId}`, { method: "DELETE" });
+      set((s) => ({ users: s.users.filter((u) => u.id !== userId) }));
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof ApiError ? err.message : "Não foi possível excluir." };
+    }
   },
 
   refreshUsers: async () => {
@@ -637,6 +665,56 @@ export const useHubStore = create<HubStore>()((set, get) => ({
       },
     });
     set((s) => ({ files: [res.file, ...s.files] }));
+  },
+
+  updateFile: async (id, data) => {
+    try {
+      const res = await v2<{ file: FileItem }>(`/files/${id}`, {
+        method: "PATCH",
+        json: data,
+      });
+      set((s) => ({ files: s.files.map((f) => (f.id === res.file.id ? res.file : f)) }));
+      return { ok: true, file: res.file };
+    } catch (err) {
+      return { ok: false, error: err instanceof ApiError ? err.message : "Não foi possível salvar." };
+    }
+  },
+
+  deleteFile: async (id) => {
+    try {
+      await v2(`/files/${id}`, { method: "DELETE" });
+      set((s) => ({ files: s.files.filter((f) => f.id !== id) }));
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof ApiError ? err.message : "Não foi possível excluir." };
+    }
+  },
+
+  updateDocument: async (id, data) => {
+    try {
+      const res = await v2<{ document: DocumentItem }>(`/documents/${id}`, {
+        method: "PATCH",
+        json: data,
+      });
+      if (res.document) {
+        set((s) => ({
+          documents: s.documents.map((d) => (d.id === res.document.id ? res.document : d)),
+        }));
+      }
+      return { ok: true, document: res.document };
+    } catch (err) {
+      return { ok: false, error: err instanceof ApiError ? err.message : "Não foi possível salvar." };
+    }
+  },
+
+  deleteDocument: async (id) => {
+    try {
+      await v2(`/documents/${id}`, { method: "DELETE" });
+      set((s) => ({ documents: s.documents.filter((d) => d.id !== id) }));
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof ApiError ? err.message : "Não foi possível excluir." };
+    }
   },
 
   upsertRelease: async (data) => {
