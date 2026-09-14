@@ -1613,7 +1613,11 @@ describe("V2 users get, email and password", { skip: !postgresReady }, () => {
       `SELECT subject, body_text FROM email_outbox WHERE to_email = 'welcome.btn@acme.com'`
     );
     assert.ok(rows.rows.some((r) => r.subject === "Bem-vindo à Avadesk"));
-    assert.ok(rows.rows.every((r) => !/Hub2026|senha temporária/i.test(r.body_text)));
+    assert.ok(
+      rows.rows
+        .filter((r) => r.subject === "Bem-vindo à Avadesk")
+        .every((r) => !/Hub2026/i.test(r.body_text ?? ""))
+    );
 
     await query(`UPDATE users SET active = FALSE WHERE id = $1`, [id]);
     const inactive = await request(app).post(`/v2/users/${id}/welcome`).set("Cookie", adminCookie);

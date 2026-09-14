@@ -110,10 +110,9 @@ export async function replaceMemberships(
   inputs: MembershipInput[] | null,
   preferredActive: string | null
 ): Promise<{ clientId: string | null; accessAll: boolean }> {
+  await query(`DELETE FROM user_client_access WHERE user_id = $1`, [userId]);
+  await query(`DELETE FROM user_project_access WHERE user_id = $1`, [userId]);
   if (role !== "client") {
-    await query(`DELETE FROM user_client_access WHERE user_id = $1`, [userId]);
-    await query(`DELETE FROM user_project_access WHERE user_id = $1`, [userId]);
-    await query(`UPDATE users SET client_id = NULL, access_all_projects = TRUE WHERE id = $1`, [userId]);
     return { clientId: null, accessAll: true };
   }
   if (!inputs || inputs.length === 0) {
@@ -167,11 +166,6 @@ export async function replaceMemberships(
       ? preferredActive
       : inputs[0].clientId;
   const activeMem = inputs.find((m) => m.clientId === active)!;
-  await query(`UPDATE users SET client_id = $2, access_all_projects = $3 WHERE id = $1`, [
-    userId,
-    active,
-    activeMem.accessAllProjects,
-  ]);
   return { clientId: active, accessAll: activeMem.accessAllProjects };
 }
 

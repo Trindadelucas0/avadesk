@@ -2,8 +2,8 @@
 
 | Item | Valor |
 |------|--------|
-| Versão do sistema | 3.17.0 — Chamados |
-| Última atualização | 14/09/2026 (staff exclui chamado: soft delete, some das listas) |
+| Versão do sistema | 3.18.0 — Usuários |
+| Última atualização | 14/09/2026 (CLIENT em N empresas e N projetos; seletor no portal) |
 | Fonte oficial | Este arquivo |
 | Guia de uso | [docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md) |
 | PRD / wireframes | [docs/PRD-NEXUS-PORTAL-CLIENTE.md](docs/PRD-NEXUS-PORTAL-CLIENTE.md) |
@@ -32,6 +32,7 @@ Tutorial: **[docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md)**.
 
 | Versão | Nome | Mudança |
 |--------|------|---------|
+| 3.18.0 | Usuários | Um login CLIENT entra em várias empresas e, em cada uma, em vários projetos (ou todos daquela empresa). Ficha `/admin/users`: checkboxes. Portal: seletor de empresa no header (`POST /v2/me/active-client` + cookie `avadesk_cid`). Cadastro da empresa só no admin (`PATCH /v2/clients/:id` CLIENT 403). Perfil do cliente: nome/foto. Migration `014_user_multi_client.sql`. |
 | 3.17.0 | Chamados | ADMIN e MANAGER excluem chamado no card expandido (modal). Soft delete `deleted_at`; some do quadro, de Concluídos, do bootstrap e dos KPIs. Cliente 403. Sem restore na UI. `DELETE /v2/tickets/:id`. Migration `013_ticket_soft_delete.sql`. |
 | 3.16.2 | E-mail | Ficha `/admin/users/:id`: botão **Reenviar e-mail** (`POST /v2/users/:id/welcome`) dispara o mesmo boas-vindas (sem senha) para o e-mail de login. Staff only; inativo 409; rate limit 10/15 min. Sem envio em massa. |
 | 3.16.1 | E-mail | Troca do e-mail de login de um CLIENT (ficha `/admin/users/:id` ou onboarding `PATCH /v2/auth/profile`) dispara o mesmo e-mail de **boas-vindas** no endereço **novo**, sem senha. Só se o valor normalizado mudou. ADMIN/MANAGER e `clients.contact_email` não disparam. Falha de envio não desfaz o PATCH. |
@@ -129,6 +130,7 @@ Seed: `npm run seed` **não apaga** clientes, usuários, projetos nem updates. S
 | Migration tickets | `db/migrations/004_tickets.sql` |
 | Migration tipo Outra coisa | `db/migrations/011_ticket_type_other.sql` |
 | Migration soft delete chamado | `db/migrations/013_ticket_soft_delete.sql` |
+| Migration multi-empresa CLIENT | `db/migrations/014_user_multi_client.sql` |
 | Migration exclusão de usuário | `db/migrations/012_user_delete_and_file_crud.sql` (`updates.author_id` SET NULL) |
 | Migration mensagens chamado | `db/migrations/008_ticket_messages.sql` |
 | Chamados API | `apps/api/src/v2/tickets.ts` |
@@ -202,7 +204,8 @@ Ficha: seções Identidade, Acesso, Conta (**Salvar alterações** → `PATCH`),
 | Identidade | Nome | Nome de exibição | Sim (edição) | Staff | `users.name` | PATCH | Recalcula iniciais | 1–120 | `apps/api/src/v2/rest.ts` |
 | Identidade | E-mail | Login | Sim | Staff | `users.email` | PATCH | `lower/trim`; unique; CLIENT + e-mail mudou → boas-vindas no novo (`sendWelcomeEmail`) | 400 se outro id já usa; inativo não recebe | `PATCH /v2/users/:id` |
 | Acesso | Papel | ADMIN / MANAGER / CLIENT | Sim | Staff | `users.role` | PATCH | Staff zera empresa | CLIENT exige `clientId` | `users_client_role_check` |
-| Acesso | Empresa / projetos | Escopo CLIENT | Condicional | Staff | `client_id` + `user_project_access` | PATCH | “Todos” ou lista | Sem projeto marcado e sem “todos” → toast | ficha |
+| Acesso | Empresa / projetos | Escopo CLIENT | Condicional | Staff | `user_client_access` + `user_project_access` | PATCH `memberships` | N empresas; “todos” por empresa | Sem empresa → toast; projeto de outra empresa 400 | ficha |
+| Isolamento | Empresa ativa | Cookie + `users.client_id` | — | Cliente | `avadesk_cid` | `POST /v2/me/active-client` | Listas só da empresa ativa; outra 404 | Cookie inválido cai na primeira membership | `memberships.ts` |
 | Conta | Ativo | Liga/desliga login | Sim | Staff | `users.active` | PATCH | Inativo → 401 no próximo request | CLIENT 403; último admin ativo → 409 | `getUserFromRequest` |
 | E-mail | Reenviar e-mail | Boas-vindas no login | Não | Staff | botão | `POST /v2/users/:id/welcome` | `sendWelcomeEmail` + `await flushOutbox`; toast | Inativo 409; CLIENT 403; sem senha; 10/15 min | `apps/web/src/app/admin/users/[id]/page.tsx` |
 | Senha | Nova / Confirmar / Gerar | Define hash | Sim no bloco | Staff | form | `POST /v2/users/:id/password` | bcrypt 12; diálogo com senha uma vez | min 8; sem e-mail; rate limit | `apps/web/src/app/admin/users/[id]/page.tsx` |
@@ -448,6 +451,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - [ ] Chamados: cliente abre bug ou Outra coisa; admin avança etapas; cliente confirma; outro tenant 404; CLIENT POST `feature` 403
 - [ ] Chamados: fila sem encerrados; Concluídos com De/Até lista só o período; `stage=closed` sem datas 400; CLIENT B não vê o arquivo de A
 - [ ] Staff (ADMIN/MANAGER) exclui chamado no card expandido (modal); some do quadro/Concluídos; CLIENT sem botão e DELETE 403; segundo DELETE 404; KPI de abertos não conta `deleted_at`
+- [ ] CLIENT em duas empresas na ficha; seletor no portal; GET chamado da empresa inativa 404; `POST /v2/me/active-client` empresa alheia 403; CLIENT `PATCH /v2/clients/:id` 403
 - [ ] Chamado: abrir sem imagem; anexar PNG; SVG/PDF 400; outro tenant 404 no download; Implementação sem Prazo desejado
 - [ ] Card expandido: **Baixar PDF** só no admin (aberto e Concluídos); portal cliente sem botão; CLIENT GET pdf 404; staff 200; outro tenant 404; sem sessão 401; PDF contém rótulos do form
 - [ ] Chamado intacto: autor (cliente ou admin) vê **Editar** e grava; outro usuário 403; após Produção ou Reabrir some o botão (API 409)

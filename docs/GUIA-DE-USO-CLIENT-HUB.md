@@ -1,7 +1,7 @@
 # Guia de uso — Avadesk
 
 Tutorial prático para o **dono (ADMIN)** e para o **CLIENTE**.  
-Atualizado em 14/09/2026 · marca Avadesk · Acesso e Ambientes no admin · live no portal (SSE) · e-mail no login do cliente · Reenviar e-mail na ficha do usuário · avatar do header abre o perfil (leitura; Editar para alterar) · no portal o header não mostra CLIENT · dados no Postgres relacional (`/v2`). Sessão HttpOnly. E-mail Resend + Web Push.
+Atualizado em 14/09/2026 · marca Avadesk · CLIENT em várias empresas (seletor no portal) · Acesso e Ambientes no admin · live no portal (SSE) · e-mail no login do cliente · Reenviar e-mail na ficha do usuário · avatar do header abre o perfil (leitura; Editar para alterar) · no portal o header não mostra CLIENT · dados no Postgres relacional (`/v2`). Sessão HttpOnly. E-mail Resend + Web Push.
 
 ---
 
@@ -156,10 +156,10 @@ A lista em **Usuários** mostra a equipe (ADMIN, MANAGER) e os logins CLIENT. Fi
 
 1. Primeiro crie a **empresa** em `/admin/clients` e os **projetos** dela.
 2. Abra **Usuários** (barra inferior no celular, ou **Menu** no canto superior esquerdo → Usuários).
-3. E-mail + papel **CLIENT** + empresa (ou **MANAGER** / **ADMIN** para a equipe — sem empresa).
-4. No login de cliente, marque **quais projetos** essa pessoa vê, ou “Todos os projetos desta empresa”.
+3. E-mail + papel **CLIENT** + uma ou mais empresas (ou **MANAGER** / **ADMIN** para a equipe — sem empresa).
+4. Em cada empresa marcada, escolha **quais projetos** essa pessoa vê, ou “Todos os projetos desta empresa”.
 5. **Criar usuário** → abre um diálogo no **centro** da tela (não some sozinho) com e-mail, senha temporária `Hub2026!`, **Copiar acesso** e **Fechar**. O usuário também recebe e-mail de boas-vindas **sem** a senha.
-6. Dá para criar **vários usuários** na mesma empresa, cada um com projetos diferentes.
+6. Dá para o **mesmo login** ver várias empresas. No portal o cliente escolhe a empresa no header.
 7. Se você reusar um e-mail já cadastrado e escolher MANAGER ou ADMIN, o login **sai da empresa** e continua na lista como equipe.
 8. Na **primeira entrada**, o cliente completa:
    - nome completo
@@ -170,7 +170,7 @@ A lista em **Usuários** mostra a equipe (ADMIN, MANAGER) e os logins CLIENT. Fi
    Se o e-mail for diferente do convite, as boas-vindas vão para o e-mail novo.
 9. Depois disso a senha temporária **deixa de funcionar**.
 10. Use o switch **Ativo** para desativar acesso sem apagar o usuário (o sistema mantém o vínculo com a empresa). Desativar o último administrador ativo é recusado.
-11. Para **ver ou editar**: clique no nome ou em **Editar**. Na ficha mude nome, e-mail, papel, empresa, projetos e ativo, depois **Salvar alterações**. Trocar o e-mail de um CLIENT envia boas-vindas para o endereço novo (sem senha).
+11. Para **ver ou editar**: clique no nome ou em **Editar**. Na ficha mude nome, e-mail, papel, empresas, projetos e ativo, depois **Salvar alterações**. Trocar o e-mail de um CLIENT envia boas-vindas para o endereço novo (sem senha).
 12. Para **reenviar o e-mail de boas-vindas**: na ficha, bloco **E-mail de boas-vindas** → **Reenviar e-mail**. A senha **não** vai no e-mail. Conta inativa não envia.
 13. Para **excluir de verdade**: **Excluir** na lista ou na ficha → confirme. O login some. Não dá para excluir a própria conta. Gerente não exclui administrador. Updates antigos ficam como **Autor removido**.
 14. Para **trocar a senha**: na ficha, bloco Senha → digite (ou **Gerar**) → **Definir senha**. A senha aparece uma vez no diálogo do centro. Não vai por e-mail. Uma sessão já aberta pode continuar até expirar; desative a conta se precisar bloquear agora.
@@ -178,8 +178,9 @@ A lista em **Usuários** mostra a equipe (ADMIN, MANAGER) e os logins CLIENT. Fi
 Fluxo mínimo para o cliente ver o hub:
 
 ```text
-Cliente cadastrado → Usuário CLIENT do mesmo clientId
-→ Login com senha temporária → Onboarding obrigatório
+Cliente cadastrado → Usuário CLIENT nas empresas certas
+→ Login com senha temporária → Onboarding (nome/senha)
+→ Escolhe a empresa no header se houver mais de uma
 → Projeto + Update visível (quando você publicar)
 ```
 
@@ -283,9 +284,9 @@ Quando há projeto:
 ### 4.9 Perfil
 
 - No header, o círculo com a sua letra (e o nome no computador) abre `/client/profile`. O portal **não** mostra o rótulo CLIENT ao lado do nome.
-- A tela abre em **leitura**. **Editar** na conta altera o nome de exibição; **Editar** na empresa abre a ficha. **Cancelar** descarta sem gravar.
+- A tela abre em **leitura**. **Editar** na conta altera o nome de exibição. **Cancelar** descarta sem gravar.
 - **Sua conta:** e-mail de login, Instagrams (se informados no onboarding) e **nome de exibição**.
-- **Dados da empresa:** nome, e-mail de contato, telefone e WhatsApp (obrigatórios ao salvar); CNPJ, empresa, segmento e mais informações opcionais. Se faltar obrigatório, aparece o aviso **Complete os dados da empresa**.
+- Dados da empresa (CNPJ, telefone, etc.) o time altera em **Clientes**. O cliente não edita essa ficha no portal.
 - O ícone **Sair** ao lado do avatar só encerra a sessão.
 
 ---
@@ -337,7 +338,7 @@ Persistência: Postgres relacional em `DATABASE_URL` (`localhost:5434/nexus`). `
 | Ainda vejo dados demo antigos | Recarregue logado; a UI hidrata `/api/v2/bootstrap`. |
 | Cliente some ao recarregar | Confira `npm run dev` (API + Postgres), não só `dev:web`. |
 | API vs UI | Sem API no ar o Hub não autentica nem grava. |
-| Cliente não vê updates | Update precisa de “visível ao cliente”; usuário CLIENT precisa do mesmo `clientId` do projeto. |
+| Cliente não vê updates | Update precisa de “visível ao cliente”; o login precisa da empresa (membership) e do projeto. Troque a empresa no header se tiver mais de uma. |
 | Não consigo criar projeto | Crie um **cliente** antes. |
 | Cliente novo não entra após criar | Senha temporária é `Hub2026!`; usuário precisa estar **Ativo** e vinculado a um cliente. |
 | Cliente cai no hub sem cadastro | Recarregue; `/client/*` redireciona para `/client/onboarding` até concluir. |

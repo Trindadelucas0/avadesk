@@ -525,27 +525,12 @@ v2UsersRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async 
       }
     }
 
-    await query(
-      `UPDATE users SET
-         name = COALESCE($2, name),
-         active = COALESCE($3, active),
-         role = $4,
-         email = $5,
-         avatar_initials = COALESCE($6, avatar_initials)
-       WHERE id = $1`,
-      [
-        id.data,
-        parsed.data.name ?? null,
-        parsed.data.active ?? null,
-        nextRole,
-        nextEmail,
-        nextInitials,
-      ]
-    );
     let nextClientId = (existing.client_id as string | null) ?? null;
+    let nextAccessAll = Boolean(existing.access_all_projects);
     if (nextRole !== "client") {
       const cleared = await replaceMemberships(id.data, nextRole, [], null);
       nextClientId = cleared.clientId;
+      nextAccessAll = cleared.accessAll;
     } else if (nextMemberships) {
       if (nextMemberships.length === 0) {
         return sendError(res, 400, "VALIDATION", "Vincule o usuário a uma empresa.");
@@ -557,9 +542,32 @@ v2UsersRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async 
         nextClientId
       );
       nextClientId = applied.clientId;
+      nextAccessAll = applied.accessAll;
     } else if (String(existing.role) !== "client") {
       return sendError(res, 400, "VALIDATION", "Vincule o usuário a uma empresa.");
     }
+
+    await query(
+      `UPDATE users SET
+         name = COALESCE($2, name),
+         active = COALESCE($3, active),
+         role = $4,
+         client_id = $5,
+         access_all_projects = $6,
+         email = $7,
+         avatar_initials = COALESCE($8, avatar_initials)
+       WHERE id = $1`,
+      [
+        id.data,
+        parsed.data.name ?? null,
+        parsed.data.active ?? null,
+        nextRole,
+        nextClientId,
+        nextAccessAll,
+        nextEmail,
+        nextInitials,
+      ]
+    );
     const user = await serializeUserById(id.data);
     if (!user) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
     await writeAudit(req.user!.id, "update_user", "user", id.data);
