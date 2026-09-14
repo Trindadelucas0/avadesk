@@ -1452,6 +1452,50 @@ describe("V2 users get, email and password", { skip: !postgresReady }, () => {
       .send({ password: "NovaSenha99" });
     assert.equal(missing.status, 404);
   });
+
+  it("POST welcome queues email; CLIENT 403; inactive 409; missing 404", async () => {
+    const hash = await bcrypt.hash(env.seedPassword, 10);
+    const company = await query<{ id: string }>(`SELECT id FROM clients ORDER BY name LIMIT 1`);
+    const ins = await query<{ id: string }>(
+      `INSERT INTO users (email, password_hash, role, client_id, name, active)
+       VALUES ('welcome.btn@acme.com', $1, 'client', $2, 'Welcome Btn', TRUE)
+       RETURNING id`,
+      [hash, company.rows[0].id]
+    );
+    const id = ins.rows[0].id;
+
+    const unauth = await request(app).post(`/v2/users/${id}/welcome`);
+    assert.equal(unauth.status, 401);
+
+    const forbidden = await request(app).post(`/v2/users/${id}/welcome`).set("Cookie", clientCookie);
+    assert.equal(forbidden.status, 403);
+
+    const ok = await request(app).post(`/v2/users/${id}/welcome`).set("Cookie", adminCookie);
+    assert.equal(ok.status, 200);
+    assert.ok(["sent", "failed", "logged", "pending"].includes(ok.body.welcomeEmail));
+    const rows = await query<{ subject: string; body_text: string }>(
+      `SELECT subject, body_text FROM email_outbox WHERE to_email = 'welcome.btn@acme.com'`
+    );
+    assert.ok(rows.rows.some((r) => r.subject === "Bem-vindo à Avadesk"));
+    assert.ok(rows.rows.every((r) => !/Hub2026|senha temporária/i.test(r.body_text)));
+
+    await query(`UPDATE users SET active = FALSE WHERE id = $1`, [id]);
+    const inactive = await request(app).post(`/v2/users/${id}/welcome`).set("Cookie", adminCookie);
+    assert.equal(inactive.status, 409);
+    const afterInactive = await query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM email_outbox
+       WHERE to_email = 'welcome.btn@acme.com' AND subject = 'Bem-vindo à Avadesk'`
+    );
+    assert.equal(afterInactive.rows[0].n, rows.rows.length);
+
+    const missingWelcome = await request(app)
+      .post("/v2/users/00000000-0000-4000-8000-000000000000/welcome")
+      .set("Cookie", adminCookie);
+    assert.equal(missingWelcome.status, 404);
+
+    const bad = await request(app).post("/v2/users/not-a-uuid/welcome").set("Cookie", adminCookie);
+    assert.equal(bad.status, 404);
+  });
 });
 
 describe("V2 auth profile welcome on email change", { skip: !postgresReady }, () => {

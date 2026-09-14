@@ -50,15 +50,21 @@ export async function notifyUsers(opts: {
   }
 
   if (opts.email) {
-    void flushOutbox().catch((e) => console.error("[outbox]", e instanceof Error ? e.message : e));
+    try {
+      await flushOutbox();
+    } catch (e) {
+      console.error("[outbox]", e instanceof Error ? e.message : e);
+    }
   }
 }
+
+export type WelcomeEmailStatus = "sent" | "failed" | "logged" | "pending";
 
 export async function sendWelcomeEmail(opts: {
   userId: string;
   name: string;
   clientId: string | null;
-}): Promise<void> {
+}): Promise<{ status: WelcomeEmailStatus }> {
   try {
     const mail = welcomeEmail({
       name: opts.name,
@@ -72,8 +78,24 @@ export async function sendWelcomeEmail(opts: {
       href: "/login",
       email: mail,
     });
+    const dest = await query<{ email: string }>(`SELECT email FROM users WHERE id = $1`, [opts.userId]);
+    const to = dest.rows[0]?.email;
+    if (!to) return { status: "pending" };
+    const latest = await query<{ status: string }>(
+      `SELECT status FROM email_outbox
+       WHERE lower(to_email) = lower($1) AND subject = $2
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [to, mail.subject]
+    );
+    const status = latest.rows[0]?.status;
+    if (status === "sent" || status === "failed" || status === "logged" || status === "pending") {
+      return { status };
+    }
+    return { status: "pending" };
   } catch (err) {
     console.error("[welcome-email]", err instanceof Error ? err.message : err);
+    return { status: "pending" };
   }
 }
 

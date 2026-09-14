@@ -2,8 +2,8 @@
 
 | Item | Valor |
 |------|--------|
-| Versão do sistema | 3.16.1 — E-mail |
-| Última atualização | 13/09/2026 (boas-vindas no e-mail de login novo do CLIENT) |
+| Versão do sistema | 3.16.2 — E-mail |
+| Última atualização | 14/09/2026 (Reenviar e-mail na ficha do usuário) |
 | Fonte oficial | Este arquivo |
 | Guia de uso | [docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md) |
 | PRD / wireframes | [docs/PRD-NEXUS-PORTAL-CLIENTE.md](docs/PRD-NEXUS-PORTAL-CLIENTE.md) |
@@ -32,6 +32,7 @@ Tutorial: **[docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md)**.
 
 | Versão | Nome | Mudança |
 |--------|------|---------|
+| 3.16.2 | E-mail | Ficha `/admin/users/:id`: botão **Reenviar e-mail** (`POST /v2/users/:id/welcome`) dispara o mesmo boas-vindas (sem senha) para o e-mail de login. Staff only; inativo 409; rate limit 10/15 min. Sem envio em massa. |
 | 3.16.1 | E-mail | Troca do e-mail de login de um CLIENT (ficha `/admin/users/:id` ou onboarding `PATCH /v2/auth/profile`) dispara o mesmo e-mail de **boas-vindas** no endereço **novo**, sem senha. Só se o valor normalizado mudou. ADMIN/MANAGER e `clients.contact_email` não disparam. Falha de envio não desfaz o PATCH. |
 | 3.16.0 | Usuários e arquivos | Lista de usuários: **Editar** (ficha) e **Excluir** (apaga o login, com confirmação). Não apaga a si mesmo; MANAGER não apaga ADMIN; último admin não some (409). Switch Ativo permanece; desativar o último admin ativo também 409. `updates.author_id` fica NULL se o autor for excluído (`012_user_delete_and_file_crud.sql`). Arquivos (pasta Documentação e demais): staff **renomeia**, **muda de pasta** e **exclui** (disco + linha). Fichas `documents`: título e exclusão. Cliente continua só **Baixar**. |
 | 3.15.9 | Chamados | Card resolvido (cliente): **Confirmar** e **Ainda não está ok** em `flex-wrap`; texto pode quebrar no botão (`whitespace-normal`). Não cortam no card estreito (lista em 2 colunas). Sem mudança de API. |
@@ -169,7 +170,7 @@ Seed: `npm run seed` **não apaga** clientes, usuários, projetos nem updates. S
 | Esqueci senha | `/forgot-password` | `POST /v2/auth/forgot` (mensagem genérica). Mesmo casco + partículas. Outbox HTML Avadesk + `flushOutbox` |
 | Reset | `/reset-password?token=` | `POST /v2/auth/reset` (token hash, one-shot, 1h). Mesmo casco + partículas |
 | Usuários | `/admin/users` | `app/admin/users/page.tsx` — lista todos os papéis; `GET /v2/users` hidrata `projectIds`; criar em `CenterNotice` |
-| Ficha do usuário | `/admin/users/:id` | `app/admin/users/[id]/page.tsx` — `GET/PATCH /v2/users/:id` + `POST /v2/users/:id/password`. CLIENT com e-mail novo → boas-vindas |
+| Ficha do usuário | `/admin/users/:id` | `app/admin/users/[id]/page.tsx` — `GET/PATCH /v2/users/:id` + `POST /v2/users/:id/password` + `POST /v2/users/:id/welcome`. CLIENT com e-mail novo → boas-vindas |
 | Onboarding | `/client/onboarding` | `app/client/onboarding/page.tsx` — `PATCH /v2/auth/profile`. Se o e-mail de login mudou, boas-vindas no novo |
 | Perfil (header) | `/client/profile` · `/admin/profile` | Leitura default; Editar → `OwnProfileCard` / ficha; `PATCH /v2/auth/me` |
 | Clientes | `/admin/clients` | `app/admin/clients/page.tsx` + `[id]/page.tsx` — ficha em `clients` |
@@ -188,7 +189,7 @@ E-mail + senha → BFF grava cookie HttpOnly em :3000 → diálogo no **centro**
 
 Lista em `/admin/users` mostra **todos** os papéis. Empty state só quando não há nenhum usuário. Filtro local Todos / CLIENT / MANAGER / ADMIN + busca nome/e-mail: filtro vazio mostra texto curto, não esconde a página. Nome e **Editar** levam à ficha `/admin/users/:id`. **Excluir** (lista e ficha) pede confirmação e chama `DELETE /v2/users/:id` — some o login; e-mail fica livre. Não dá para excluir a própria conta (400). MANAGER não exclui ADMIN (403). Último usuário `role=admin` não é excluído (409). Updates antigos ficam com `author_id` nulo (UI: **Autor removido**). Criar usuário: sucesso abre diálogo no **centro** com e-mail, senha temporária, **Copiar acesso** e **Fechar**. Também dispara e-mail de **boas-vindas** (agradecimento, como usar o portal, CTA `/login`). **A senha não vai no e-mail.** Se o staff **alterar o e-mail de login** de um CLIENT na ficha, o mesmo template vai para o **endereço novo** (só se o valor `lower/trim` mudou; usuário inativo não recebe). Onboarding (`PATCH /v2/auth/profile`) idem quando o cliente troca o e-mail. ADMIN/MANAGER e o e-mail de contato da empresa (`clients.contact_email`) não disparam. Switch **Ativo** na lista chama `PATCH /v2/users/:id` sem soltar o `client_id` do CLIENT. Desativar ou rebaixar o último **admin ativo** → 409. Reusar um e-mail já cadastrado atualiza o registro (promover a ADMIN/MANAGER zera a empresa).
 
-Ficha: seções Identidade, Acesso, Conta (**Salvar alterações** → `PATCH`) e Senha (**Definir senha** → `POST /v2/users/:id/password`, 8–200, rate limit 10/15 min). Senha nova aparece uma vez no `CenterNotice` (copiar). Hash nunca volta na API. Cookie HMAC antigo pode valer até 7d; desativar a conta bloqueia o próximo request.
+Ficha: seções Identidade, Acesso, Conta (**Salvar alterações** → `PATCH`), **E-mail de boas-vindas** (**Reenviar e-mail** → `POST /v2/users/:id/welcome`, rate limit 10/15 min) e Senha (**Definir senha** → `POST /v2/users/:id/password`, 8–200, rate limit 10/15 min). Reenviar usa o mesmo template (sem senha), sempre uma linha nova no outbox. Inativo: botão off e API 409. Senha nova aparece uma vez no `CenterNotice` (copiar). Hash nunca volta na API. Cookie HMAC antigo pode valer até 7d; desativar a conta bloqueia o próximo request.
 
 | Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
@@ -201,6 +202,7 @@ Ficha: seções Identidade, Acesso, Conta (**Salvar alterações** → `PATCH`) 
 | Acesso | Papel | ADMIN / MANAGER / CLIENT | Sim | Staff | `users.role` | PATCH | Staff zera empresa | CLIENT exige `clientId` | `users_client_role_check` |
 | Acesso | Empresa / projetos | Escopo CLIENT | Condicional | Staff | `client_id` + `user_project_access` | PATCH | “Todos” ou lista | Sem projeto marcado e sem “todos” → toast | ficha |
 | Conta | Ativo | Liga/desliga login | Sim | Staff | `users.active` | PATCH | Inativo → 401 no próximo request | CLIENT 403; último admin ativo → 409 | `getUserFromRequest` |
+| E-mail | Reenviar e-mail | Boas-vindas no login | Não | Staff | botão | `POST /v2/users/:id/welcome` | `sendWelcomeEmail` + `await flushOutbox`; toast | Inativo 409; CLIENT 403; sem senha; 10/15 min | `apps/web/src/app/admin/users/[id]/page.tsx` |
 | Senha | Nova / Confirmar / Gerar | Define hash | Sim no bloco | Staff | form | `POST /v2/users/:id/password` | bcrypt 12; diálogo com senha uma vez | min 8; sem e-mail; rate limit | `apps/web/src/app/admin/users/[id]/page.tsx` |
 
 ### 6.1.2 Recuperar senha
@@ -403,7 +405,7 @@ O accent azul continua sendo marca/ação (CTA, foco, item ativo do menu, selo d
 8. CLIENT não confirma chamado de outro projeto/tenant (404). Só CLIENT confirma; admin não fecha como `closed`.
 9. Chamado: `stage` anda só um passo (fix ↔ production ↔ resolved). `closed` só via confirm. Reabrir só de `resolved` → `fix`. Conteúdo (`type`/`title`/`fields`) só o autor edita, e só com `stage=fix` sem evento de transição (`from_stage` nulo). Não muda projeto, origem nem etapa nesse PATCH. CLIENT só **cria** `bug` ou `other`; outro tipo no POST → 403. No PATCH content, CLIENT não troca para `implementation`/`feature`/`routine` (pode manter o tipo se o chamado já era legado).
 10. Esqueci senha: mesma resposta se o e-mail existir ou não. HTML escapado. Token 1h no servidor (`expires_at > NOW()`); pedido novo invalida tokens anteriores não usados. Boas-vindas **sem senha** no e-mail. Push: `user_id` só da sessão; VAPID private só no backend.
-11. Usuário: `admin`/`manager` exigem `client_id` nulo; `client` exige empresa. `GET/PATCH /v2/users/:id` e `POST /v2/users/:id/password` só para staff; CLIENT 403. PATCH persiste e-mail único. Se o papel final é `client` e o e-mail de login mudou, boas-vindas no endereço novo (sem senha; falha de envio não desfaz o PATCH). `PATCH /v2/auth/profile` (onboarding) faz o mesmo para CLIENT. Promover cliente a staff zera a empresa. Rebaixar staff a cliente sem `clientId` → 400. Senha definida pelo admin não vai no e-mail; sessão HMAC antiga não é revogada até expirar ou logout; `active=false` bloqueia o próximo request.
+11. Usuário: `admin`/`manager` exigem `client_id` nulo; `client` exige empresa. `GET/PATCH /v2/users/:id`, `POST /v2/users/:id/password` e `POST /v2/users/:id/welcome` só para staff; CLIENT 403. PATCH persiste e-mail único. Se o papel final é `client` e o e-mail de login mudou, boas-vindas no endereço novo (sem senha; falha de envio não desfaz o PATCH). `PATCH /v2/auth/profile` (onboarding) faz o mesmo para CLIENT. **Reenviar e-mail** na ficha dispara o mesmo template no e-mail de login atual (sem senha; inativo 409; rate limit 10/15 min). Promover cliente a staff zera a empresa. Rebaixar staff a cliente sem `clientId` → 400. Senha definida pelo admin não vai no e-mail; sessão HMAC antiga não é revogada até expirar ou logout; `active=false` bloqueia o próximo request.
 12. Live: `GET /v2/events` exige sessão. O evento só tem `{ type, reason }` (sem PII). CLIENT só recebe se o `client_id` da sessão for o do recurso; staff recebe todos; o ator da mutação não recebe. Poll 30s cobre SSE caído. Sem Redis: um processo Node.
 13. Web Push `href` só path relativo (`/`…, sem `//` nem protocolo). `POST /v2/notifications` rejeita URL absoluta (400). Envio com `urgency: high`. Toque no alerta abre popup central; clique na lista do sino não. Permissão de alerta só após gesto (**Ativar alertas**).
 14. Chamado: imagens opcionais só na abertura (PNG/JPEG/WebP, magic bytes, máx. 4 × 2 MB). Download autenticado; CLIENT de outro tenant 404. Não entram em `files`. `desiredDate` no POST é 400. PDF do chamado (`GET /v2/tickets/:id/pdf`) só staff (`isStaff`); CLIENT 404; outro tenant 404; não vira `ticket_attachments`.
@@ -422,7 +424,7 @@ Banco local: `DATABASE_URL=postgresql://postgres:postgres@localhost:5434/nexus` 
 
 `npm test` **não** usa o banco da tela. Aponta para `DATABASE_URL_TEST` (`.../nexus_test`), cria o database se faltar, aplica migrations e só então faz TRUNCATE + fixture. Se a URL de teste for `nexus` (ou o nome não contiver `test`), o comando aborta.
 
-E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FROM=Avadesk <onboarding@resend.dev>` em teste. Sem a key, o outbox marca `logged`. Recuperar senha: `/login` → Esqueci a senha. Criar usuário dispara boas-vindas. Trocar o e-mail de login de um CLIENT (ficha do admin ou onboarding) dispara o mesmo e-mail no **endereço novo**. Chamado em Produção (e demais etapas) dispara e-mail + notificação **no e-mail de login** do usuário CLIENT. Com a aba `/client/chamados` aberta, o badge muda na hora (SSE). No celular, toque em **Ativar alertas** (e no iPhone abra pelo ícone da tela inicial, iOS 16.4+). Sem esse toque o aviso fica só no sino.
+E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FROM=Avadesk <onboarding@resend.dev>` em teste. Sem a key, o outbox marca `logged`. Recuperar senha: `/login` → Esqueci a senha. Criar usuário dispara boas-vindas. Na ficha, **Reenviar e-mail** dispara o mesmo template no e-mail de login (sem senha). Trocar o e-mail de login de um CLIENT (ficha do admin ou onboarding) dispara o mesmo e-mail no **endereço novo**. Chamado em Produção (e demais etapas) dispara e-mail + notificação **no e-mail de login** do usuário CLIENT. Com a aba `/client/chamados` aberta, o badge muda na hora (SSE). No celular, toque em **Ativar alertas** (e no iPhone abra pelo ícone da tela inicial, iOS 16.4+). Sem esse toque o aviso fica só no sino.
 
 ## 9. Checklist de validação
 
@@ -458,6 +460,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - [ ] Ficha CLIENT: salvar e-mail novo → outbox de boas-vindas no endereço novo; mesmo e-mail não reenvia; ADMIN/MANAGER não disparam; onboarding com e-mail novo idem
 - [ ] `/admin/users`: lista ADMIN/MANAGER/CLIENT; filtro vazio não esconde Criar; Abrir abre ficha
 - [ ] Ficha: salvar nome/e-mail; e-mail duplicado 400; definir senha 8+ e login com a senha nova
+- [ ] Ficha: **Reenviar e-mail** → outbox boas-vindas no e-mail de login; inativo não envia; CLIENT 403; senha não vai no HTML
 - [ ] Switch Ativo em `/admin/users` em um CLIENT: 200, empresa permanece; CLIENT não GET/PATCH `/v2/users` nem POST senha
 - [ ] Chamado → Produção: in-app “em produção” + e-mail; ator não recebe
 - [ ] `GET /health` → `ok`; `email` e `push` true só com `RESEND_API_KEY` e VAPID no `.env`
@@ -483,7 +486,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - Consulta CNPJ: backend chama só `https://brasilapi.com.br/api/cnpj/v1/{14 dígitos}`; rate limit; timeout 5s.
 - SQL parametrizado. Sem secrets no frontend / logs.
 - Cookie: HttpOnly, SameSite=Lax, Secure em production.
-- Rate limit login/forgot/reset, `POST /v2/users/:id/password` (staff, 10/15 min), POST de chamado e POST de imagem no chamado (CLIENT, 10/hora e 20/hora), PATCH content de chamado (CLIENT, 10/hora), POST mensagem de chamado (CLIENT, 30/hora), GET PDF do chamado (não-staff 30/min, depois 404), subscribe de push e reveal de senha/`.env` (30/min).
+- Rate limit login/forgot/reset, `POST /v2/users/:id/password` e `POST /v2/users/:id/welcome` (staff, 10/15 min), POST de chamado e POST de imagem no chamado (CLIENT, 10/hora e 20/hora), PATCH content de chamado (CLIENT, 10/hora), POST mensagem de chamado (CLIENT, 30/hora), GET PDF do chamado (não-staff 30/min, depois 404), subscribe de push e reveal de senha/`.env` (30/min).
 - SSE: cookie de sessão; payload sem PII; isolamento por `client_id` no servidor.
 - Web Push: endpoint https (localhost http ok); subscription amarrada ao usuário da sessão. Payload `href` só path relativo (API + SW). Envio com `urgency: high`. `sw.js` com `Cache-Control: no-store`.
 - Uploads: extensão/MIME allowlist + magic bytes nas imagens de chamado, nome armazenado UUID, path traversal bloqueado. JSON da API até 12 MB.

@@ -56,6 +56,7 @@ export default function AdminUserDetailPage() {
   const fetchUser = useHubStore((s) => s.fetchUser);
   const updateUser = useHubStore((s) => s.updateUser);
   const setUserPassword = useHubStore((s) => s.setUserPassword);
+  const sendUserWelcomeEmail = useHubStore((s) => s.sendUserWelcomeEmail);
   const deleteUser = useHubStore((s) => s.deleteUser);
 
   const [loading, setLoading] = useState(true);
@@ -63,6 +64,7 @@ export default function AdminUserDetailPage() {
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [sendingWelcome, setSendingWelcome] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -390,6 +392,39 @@ export default function AdminUserDetailPage() {
             </Button>
           </div>
         ) : null}
+      </section>
+
+      <section className="hub-surface mb-6 p-4">
+        <h2 className="mb-1 text-sm font-medium uppercase tracking-wider text-[var(--text-muted)]">
+          E-mail de boas-vindas
+        </h2>
+        <p className="mb-4 text-sm text-[var(--text-secondary)]">
+          Envia o mesmo e-mail (sem senha) para o login desta conta.
+        </p>
+        {!user.active ? (
+          <p className="mb-3 text-sm text-[var(--text-muted)]">Ative a conta para enviar.</p>
+        ) : null}
+        <Button
+          type="button"
+          variant="secondary"
+          className="w-full sm:w-auto"
+          disabled={!user.active || sendingWelcome}
+          onClick={async () => {
+            setSendingWelcome(true);
+            try {
+              const result = await sendUserWelcomeEmail(user.id);
+              if (!result.ok) {
+                toast.error(result.error);
+                return;
+              }
+              toast.success("E-mail enviado");
+            } finally {
+              setSendingWelcome(false);
+            }
+          }}
+        >
+          {sendingWelcome ? "Enviando…" : "Reenviar e-mail"}
+        </Button>
       </section>
 
       <section className="hub-surface mb-6 p-4">

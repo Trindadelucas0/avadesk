@@ -1,7 +1,7 @@
 # Guia de uso — Avadesk
 
 Tutorial prático para o **dono (ADMIN)** e para o **CLIENTE**.  
-Atualizado em 13/09/2026 · marca Avadesk · Acesso e Ambientes no admin · live no portal (SSE) · e-mail no login do cliente · avatar do header abre o perfil (leitura; Editar para alterar) · no portal o header não mostra CLIENT · dados no Postgres relacional (`/v2`). Sessão HttpOnly. E-mail Resend + Web Push.
+Atualizado em 14/09/2026 · marca Avadesk · Acesso e Ambientes no admin · live no portal (SSE) · e-mail no login do cliente · Reenviar e-mail na ficha do usuário · avatar do header abre o perfil (leitura; Editar para alterar) · no portal o header não mostra CLIENT · dados no Postgres relacional (`/v2`). Sessão HttpOnly. E-mail Resend + Web Push.
 
 ---
 
@@ -170,8 +170,9 @@ A lista em **Usuários** mostra a equipe (ADMIN, MANAGER) e os logins CLIENT. Fi
 9. Depois disso a senha temporária **deixa de funcionar**.
 10. Use o switch **Ativo** para desativar acesso sem apagar o usuário (o sistema mantém o vínculo com a empresa). Desativar o último administrador ativo é recusado.
 11. Para **ver ou editar**: clique no nome ou em **Editar**. Na ficha mude nome, e-mail, papel, empresa, projetos e ativo, depois **Salvar alterações**. Trocar o e-mail de um CLIENT envia boas-vindas para o endereço novo (sem senha).
-12. Para **excluir de verdade**: **Excluir** na lista ou na ficha → confirme. O login some. Não dá para excluir a própria conta. Gerente não exclui administrador. Updates antigos ficam como **Autor removido**.
-13. Para **trocar a senha**: na ficha, bloco Senha → digite (ou **Gerar**) → **Definir senha**. A senha aparece uma vez no diálogo do centro. Não vai por e-mail. Uma sessão já aberta pode continuar até expirar; desative a conta se precisar bloquear agora.
+12. Para **reenviar o e-mail de boas-vindas**: na ficha, bloco **E-mail de boas-vindas** → **Reenviar e-mail**. A senha **não** vai no e-mail. Conta inativa não envia.
+13. Para **excluir de verdade**: **Excluir** na lista ou na ficha → confirme. O login some. Não dá para excluir a própria conta. Gerente não exclui administrador. Updates antigos ficam como **Autor removido**.
+14. Para **trocar a senha**: na ficha, bloco Senha → digite (ou **Gerar**) → **Definir senha**. A senha aparece uma vez no diálogo do centro. Não vai por e-mail. Uma sessão já aberta pode continuar até expirar; desative a conta se precisar bloquear agora.
 
 Fluxo mínimo para o cliente ver o hub:
 

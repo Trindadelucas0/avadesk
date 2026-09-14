@@ -315,6 +315,14 @@ const passwordLimiter = rateLimit({
   message: { error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente mais tarde." } },
 });
 
+const welcomeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente mais tarde." } },
+});
+
 const passwordSchema = z.object({
   password: z.string().min(8).max(200),
 });
@@ -573,6 +581,39 @@ v2UsersRouter.post(
       return res.json({ user });
     } catch (err) {
       return handleRouteError(res, err, "[v2/users:password]");
+    }
+  }
+);
+
+v2UsersRouter.post(
+  "/:id/welcome",
+  requireAuth,
+  requireRole("admin", "manager"),
+  welcomeLimiter,
+  async (req, res) => {
+    const id = uuid.safeParse(req.params.id);
+    if (!id.success) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    try {
+      const current = await query<{
+        id: string;
+        name: string;
+        client_id: string | null;
+        active: boolean;
+      }>(`SELECT id, name, client_id, active FROM users WHERE id = $1`, [id.data]);
+      const existing = current.rows[0];
+      if (!existing) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+      if (!existing.active) {
+        return sendError(res, 409, "CONFLICT", "Ative a conta para enviar o e-mail.");
+      }
+      const result = await sendWelcomeEmail({
+        userId: id.data,
+        name: String(existing.name ?? ""),
+        clientId: existing.client_id,
+      });
+      await writeAudit(req.user!.id, "send_welcome_email", "user", id.data);
+      return res.json({ welcomeEmail: result.status });
+    } catch (err) {
+      return handleRouteError(res, err, "[v2/users:welcome]");
     }
   }
 );

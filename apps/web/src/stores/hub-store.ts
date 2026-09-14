@@ -106,6 +106,9 @@ interface HubStore extends MockStoreState {
     userId: string,
     password: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  sendUserWelcomeEmail: (
+    userId: string
+  ) => Promise<{ ok: true; welcomeEmail: string } | { ok: false; error: string }>;
   addDocument: (
     doc: Omit<DocumentItem, "id" | "history" | "uploadedAt"> & { note?: string }
   ) => Promise<void>;
@@ -619,6 +622,23 @@ export const useHubStore = create<HubStore>()((set, get) => ({
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err instanceof ApiError ? err.message : "Não foi possível alterar a senha." };
+    }
+  },
+
+  sendUserWelcomeEmail: async (userId) => {
+    try {
+      const res = await v2<{ welcomeEmail: string }>(`/users/${userId}/welcome`, {
+        method: "POST",
+      });
+      if (res.welcomeEmail === "failed") {
+        return { ok: false, error: "Não foi possível enviar o e-mail. Tente de novo." };
+      }
+      if (res.welcomeEmail === "logged") {
+        return { ok: false, error: "E-mail só registrado no servidor (sem envio)." };
+      }
+      return { ok: true, welcomeEmail: res.welcomeEmail };
+    } catch (err) {
+      return { ok: false, error: err instanceof ApiError ? err.message : "Não foi possível enviar o e-mail." };
     }
   },
 
