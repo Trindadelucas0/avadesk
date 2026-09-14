@@ -2190,26 +2190,6 @@ describe("multi-company CLIENT", { skip: !postgresReady }, () => {
     const bootA = await request(app).get("/v2/bootstrap").set("Cookie", cookie);
     assert.equal(bootA.body.projects.length, 1);
 
-    const otherCompany = list.body.clients.find(
-      (c: { id: string }) => c.id !== bootA.body.session.clientId
-    ).id;
-    const switched = await request(app)
-      .post("/v2/me/active-client")
-      .set("Cookie", cookie)
-      .send({ clientId: otherCompany });
-    assert.equal(switched.status, 200);
-    const cookie2 = `${cookie}; ${cookieFrom(switched)}`;
-    const bootB = await request(app).get("/v2/bootstrap").set("Cookie", cookie2);
-    assert.equal(bootB.body.session.clientId, otherCompany);
-    assert.equal(bootB.body.projects.length, 1);
-    assert.notEqual(bootB.body.projects[0].id, bootA.body.projects[0].id);
-
-    const denied = await request(app)
-      .post("/v2/me/active-client")
-      .set("Cookie", cookie)
-      .send({ clientId: "11111111-1111-4111-8111-111111111111" });
-    assert.equal(denied.status, 403);
-
     const ticketB = await request(app)
       .post("/v2/tickets")
       .set("Cookie", adminCookie)
@@ -2224,9 +2204,30 @@ describe("multi-company CLIENT", { skip: !postgresReady }, () => {
       .get(`/v2/tickets/${ticketB.body.ticket.id}`)
       .set("Cookie", cookie);
     assert.equal(asWrong.status, 404);
+
+    const otherCompany = list.body.clients.find(
+      (c: { id: string }) => c.id !== bootA.body.session.clientId
+    ).id;
+    const switched = await request(app)
+      .post("/v2/me/active-client")
+      .set("Cookie", cookie)
+      .send({ clientId: otherCompany });
+    assert.equal(switched.status, 200);
+    const cookie2 = `${cookie}; ${cookieFrom(switched)}`;
+    const bootB = await request(app).get("/v2/bootstrap").set("Cookie", cookie2);
+    assert.equal(bootB.body.session.clientId, otherCompany);
+    assert.equal(bootB.body.projects.length, 1);
+    assert.notEqual(bootB.body.projects[0].id, bootA.body.projects[0].id);
+
     const asRight = await request(app)
       .get(`/v2/tickets/${ticketB.body.ticket.id}`)
       .set("Cookie", cookie2);
     assert.equal(asRight.status, 200);
+
+    const denied = await request(app)
+      .post("/v2/me/active-client")
+      .set("Cookie", cookie2)
+      .send({ clientId: "11111111-1111-4111-8111-111111111111" });
+    assert.equal(denied.status, 403);
   });
 });
