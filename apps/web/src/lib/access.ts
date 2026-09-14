@@ -26,3 +26,7 @@ export function roleLabel(role: Role): string {
   if (role === "MANAGER") return "Equipe";
   return "Cliente";
 }
+
+export function isStaffRole(role?: Role | null): boolean {
+  return role === "ADMIN" || role === "MANAGER";
+}

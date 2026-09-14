@@ -1027,6 +1027,144 @@ describe("V2 tickets", { skip: !postgresReady }, () => {
       });
     assert.equal(afterReopen.status, 409);
   });
+
+  it("staff can soft-delete a ticket; CLIENT cannot; lists hide it", async () => {
+    const created = await request(app)
+      .post("/v2/tickets")
+      .set("Cookie", adminCookie)
+      .send({
+        projectId: projectAId,
+        type: "bug",
+        title: "Excluir chamado admin",
+        origin: "admin_report",
+        fields: { problem: "Duplicado", where: "Login" },
+      });
+    assert.equal(created.status, 201);
+    const id = created.body.ticket.id as string;
+
+    const asClient = await request(app).delete(`/v2/tickets/${id}`).set("Cookie", clientCookie);
+    assert.equal(asClient.status, 403);
+
+    const noAuth = await request(app).delete(`/v2/tickets/${id}`);
+    assert.equal(noAuth.status, 401);
+
+    const badId = await request(app).delete("/v2/tickets/not-a-uuid").set("Cookie", adminCookie);
+    assert.equal(badId.status, 404);
+
+    const otherTenant = await request(app).delete(`/v2/tickets/${id}`).set("Cookie", clientBCookie);
+    assert.equal(otherTenant.status, 403);
+
+    const overviewBefore = await request(app).get("/v2/admin/overview").set("Cookie", adminCookie);
+    assert.equal(overviewBefore.status, 200);
+    const openBefore = overviewBefore.body.tickets.open as number;
+
+    const removed = await request(app).delete(`/v2/tickets/${id}`).set("Cookie", adminCookie);
+    assert.equal(removed.status, 200);
+    assert.equal(removed.body.ok, true);
+
+    const row = await query<{ deleted_at: Date | null }>(
+      `SELECT deleted_at FROM tickets WHERE id = $1`,
+      [id]
+    );
+    assert.ok(row.rows[0]?.deleted_at);
+
+    const audit = await query<{ action: string }>(
+      `SELECT action FROM audit_logs WHERE entity_id = $1 AND action = 'ticket_delete' LIMIT 1`,
+      [id]
+    );
+    assert.equal(audit.rows[0]?.action, "ticket_delete");
+
+    const listed = await request(app).get("/v2/tickets").set("Cookie", adminCookie);
+    assert.equal(listed.status, 200);
+    assert.equal(
+      listed.body.tickets.some((t: { id: string }) => t.id === id),
+      false
+    );
+
+    const byId = await request(app).get(`/v2/tickets/${id}`).set("Cookie", adminCookie);
+    assert.equal(byId.status, 404);
+
+    const patchGone = await request(app)
+      .patch(`/v2/tickets/${id}`)
+      .set("Cookie", adminCookie)
+      .send({ stage: "production" });
+    assert.equal(patchGone.status, 404);
+
+    const boot = await request(app).get("/v2/bootstrap").set("Cookie", adminCookie);
+    assert.equal(boot.status, 200);
+    assert.equal(
+      boot.body.tickets.some((t: { id: string }) => t.id === id),
+      false
+    );
+
+    const overviewAfter = await request(app).get("/v2/admin/overview").set("Cookie", adminCookie);
+    assert.equal(overviewAfter.status, 200);
+    assert.equal(overviewAfter.body.tickets.open, openBefore - 1);
+
+    const again = await request(app).delete(`/v2/tickets/${id}`).set("Cookie", adminCookie);
+    assert.equal(again.status, 404);
+  });
+
+  it("MANAGER can soft-delete an open ticket and a closed ticket leaves the archive", async () => {
+    const created = await request(app)
+      .post("/v2/tickets")
+      .set("Cookie", managerCookie)
+      .send({
+        projectId: projectAId,
+        type: "bug",
+        title: "Excluir pelo gerente",
+        origin: "admin_report",
+        fields: { problem: "Teste manager", where: "Home" },
+      });
+    assert.equal(created.status, 201);
+    const openId = created.body.ticket.id as string;
+    const asManager = await request(app).delete(`/v2/tickets/${openId}`).set("Cookie", managerCookie);
+    assert.equal(asManager.status, 200);
+
+    const closed = await request(app)
+      .post("/v2/tickets")
+      .set("Cookie", adminCookie)
+      .send({
+        projectId: projectAId,
+        type: "bug",
+        title: "Excluir concluído",
+        origin: "admin_report",
+        fields: { problem: "Arquivo", where: "Chamados" },
+      });
+    assert.equal(closed.status, 201);
+    const closedId = closed.body.ticket.id as string;
+    await request(app).patch(`/v2/tickets/${closedId}`).set("Cookie", adminCookie).send({ stage: "production" });
+    await request(app).patch(`/v2/tickets/${closedId}`).set("Cookie", adminCookie).send({ stage: "resolved" });
+    const confirm = await request(app)
+      .post(`/v2/tickets/${closedId}/confirm`)
+      .set("Cookie", clientCookie)
+      .send({});
+    assert.equal(confirm.status, 200);
+
+    const confirmedAt = new Date(confirm.body.ticket.clientConfirmedAt as string);
+    const from = new Date(confirmedAt.getTime() - 86_400_000).toISOString().slice(0, 10);
+    const to = new Date(confirmedAt.getTime() + 86_400_000).toISOString().slice(0, 10);
+    const archivedBefore = await request(app)
+      .get(`/v2/tickets?stage=closed&from=${from}&to=${to}`)
+      .set("Cookie", adminCookie);
+    assert.equal(archivedBefore.status, 200);
+    assert.equal(
+      archivedBefore.body.tickets.some((t: { id: string }) => t.id === closedId),
+      true
+    );
+
+    const delClosed = await request(app).delete(`/v2/tickets/${closedId}`).set("Cookie", managerCookie);
+    assert.equal(delClosed.status, 200);
+
+    const archivedAfter = await request(app)
+      .get(`/v2/tickets?stage=closed&from=${from}&to=${to}`)
+      .set("Cookie", adminCookie);
+    assert.equal(archivedAfter.status, 200);
+    assert.equal(
+      archivedAfter.body.tickets.some((t: { id: string }) => t.id === closedId),
+      false
+    );
+  });
 });
 
 describe("Admin overview", { skip: !postgresReady }, () => {

@@ -183,6 +183,10 @@ export function ClosedTicketsPanel({
                       onToggle={() => setOpenId((current) => (current === ticket.id ? null : ticket.id))}
                       mode={mode}
                       projectName={names[ticket.projectId]}
+                      onDeleted={(id) => {
+                        setTickets((current) => current.filter((item) => item.id !== id));
+                        setOpenId((current) => (current === id ? null : current));
+                      }}
                     />
                   </li>
                 ))}

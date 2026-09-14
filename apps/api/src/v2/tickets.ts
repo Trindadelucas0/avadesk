@@ -313,6 +313,8 @@ const TICKET_SELECT = `SELECT t.*, p.name AS project_name,
        LEFT JOIN users usr ON usr.id = t.created_by_user_id
        LEFT JOIN users awaiter ON awaiter.id = t.awaiting_reply_from_user_id`;
 
+const TICKET_ALIVE = `t.deleted_at IS NULL`;
+
 export type TicketListStage = "open" | "closed";
 
 export async function listTicketsDto(
@@ -339,7 +341,7 @@ export async function listTicketsDto(
 
   const f = bindClientFilter(user, 1);
   const params = [...f.params];
-  let extra = "";
+  let extra = ` AND ${TICKET_ALIVE}`;
   if (opts.projectId) {
     await getAccessibleProject(user, opts.projectId);
     params.push(opts.projectId);
@@ -387,7 +389,7 @@ async function getTicketRow(user: AuthUser, id: string): Promise<TicketRow | nul
   const f = bindClientFilter(user, 2);
   const result = await query<TicketRow>(
     `${TICKET_SELECT}
-     WHERE t.id = $1 AND ${f.sql}`,
+     WHERE t.id = $1 AND ${f.sql} AND ${TICKET_ALIVE}`,
     [id, ...f.params]
   );
   return result.rows[0] ?? null;
@@ -532,8 +534,10 @@ const contentSchema = z.object({
   fields: z.unknown(),
 });
 
+const skipTestLimiter = () => (process.env.AVADESK_TEST || "").trim() === "1";
+
 const skipTicketLimiter = (req: { user?: AuthUser }) =>
-  (process.env.AVADESK_TEST || "").trim() === "1" || Boolean(req.user && isStaff(req.user));
+  skipTestLimiter() || Boolean(req.user && isStaff(req.user));
 
 const createLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -579,6 +583,17 @@ const pdfLimiter = rateLimit({
   message: { error: { code: "RATE_LIMIT", message: "Muitos downloads. Tente mais tarde." } },
 });
 
+const deleteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  skip: skipTestLimiter,
+  keyGenerator: (req) => String(req.user?.id ?? "anon"),
+  validate: { xForwardedForHeader: false },
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "RATE_LIMIT", message: "Muitas exclusões. Tente mais tarde." } },
+});
+
 export const v2TicketsRouter = Router();
 
 v2TicketsRouter.get("/", requireAuth, async (req, res) => {
@@ -622,6 +637,33 @@ v2TicketsRouter.get("/:id", requireAuth, async (req, res) => {
     return res.json({ ticket: await toTicketDto(row) });
   } catch (err) {
     return handleRouteError(res, err, "[v2/tickets:get]");
+  }
+});
+
+v2TicketsRouter.delete("/:id", requireAuth, requireRole("admin", "manager"), deleteLimiter, async (req, res) => {
+  const id = uuid.safeParse(req.params.id);
+  if (!id.success) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+  const user = req.user!;
+  try {
+    const existing = await getTicketRow(user, id.data);
+    if (!existing) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    const updated = await query(
+      `UPDATE tickets
+       SET deleted_at = NOW(), deleted_by = $2, updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [id.data, user.id]
+    );
+    if (!updated.rowCount) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+    await writeAudit(user.id, "ticket_delete", "ticket", id.data);
+    const project = await getAccessibleProject(user, String(existing.project_id));
+    publishLive({
+      reason: "ticket",
+      clientId: project.client_id,
+      actorId: user.id,
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    return handleRouteError(res, err, "[v2/tickets:delete]");
   }
 });
 
@@ -1042,7 +1084,14 @@ v2TicketsRouter.post("/:id/attachments", requireAuth, attachLimiter, async (req,
     let attId = "";
     try {
       await client.query("BEGIN");
-      await client.query(`SELECT id FROM tickets WHERE id = $1 FOR UPDATE`, [id.data]);
+      const locked = await client.query(
+        `SELECT id FROM tickets WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [id.data]
+      );
+      if (!locked.rowCount) {
+        await client.query("ROLLBACK");
+        return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
+      }
       const counted = await client.query<{ n: number }>(
         `SELECT COUNT(*)::int AS n FROM ticket_attachments WHERE ticket_id = $1`,
         [id.data]

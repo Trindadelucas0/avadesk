@@ -158,6 +158,7 @@ interface HubStore extends MockStoreState {
   ) => Promise<{ ok: true; ticket: Ticket } | { ok: false; error: string }>;
   setTicketStage: (id: string, stage: TicketStage, note?: string) => Promise<void>;
   confirmTicket: (id: string) => Promise<void>;
+  deleteTicket: (id: string) => Promise<void>;
   reopenTicket: (id: string, note: string) => Promise<void>;
   listClosedTickets: (opts: {
     from: string;
@@ -858,6 +859,13 @@ export const useHubStore = create<HubStore>()((set, get) => ({
       method: "POST",
       json: {},
     });
+    set((s) => ({
+      tickets: s.tickets.filter((t) => t.id !== id),
+    }));
+  },
+
+  deleteTicket: async (id) => {
+    await v2(`/tickets/${id}`, { method: "DELETE" });
     set((s) => ({
       tickets: s.tickets.filter((t) => t.id !== id),
     }));

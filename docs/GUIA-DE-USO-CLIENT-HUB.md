@@ -120,7 +120,7 @@ No modal:
 - Arraste o card (puxador à esquerda) para a coluna vizinha. Grava na hora (`PATCH /v2/tickets/:id`).
 - Não dá para pular etapa. Só o cliente confirma o encerramento.
 - Para ver o que já foi concluído: abra **Concluídos**, escolha **De** e **Até** (data em que o cliente confirmou) e toque em **Consultar**.
-- Expanda o card para ler o contexto ou usar os botões de etapa (mesmo efeito do arraste).
+- Expanda o card para ler o contexto ou usar os botões de etapa (mesmo efeito do arraste). **Excluir** (ADMIN e MANAGER) pede confirmação e tira o chamado das listas; o registro fica no banco. O cliente não vê esse botão.
 - `/admin/tasks` (antigo Kanban de tasks internas) redireciona para esta tela.
 
 ### 3.6.1 Como o admin trata um chamado
@@ -130,7 +130,8 @@ No modal:
 3. Expanda o card para ler o contexto (e as imagens, se houver). Use **Baixar PDF** (só o time, no `/admin/chamados`) para levar o chamado ao Cursor (texto dos campos, histórico e conversa; prints ficam só como nomes). O cliente não vê esse botão. Se **você** abriu o chamado e ele ainda não saiu de Correção (ninguém avançou a etapa), use **Editar** para corrigir tipo, título e campos. Depois que a etapa andar — ou se o chamado for reaberto — o Editar some; o PDF continua disponível para o time.
 4. Avance **Correção → Produção → Resolvido** (um passo por vez), arrastando ou pelos botões. A etapa atual gira no card do cliente; as feitas ficam verdes. Cada avanço envia **e-mail + notificação** para o **e-mail de login** do usuário CLIENT da empresa (e alerta no celular se o cliente autorizou). Se o cliente estiver com o portal aberto, o card atualiza **na hora**, sem ele precisar recarregar.
 5. Quando estiver em Resolvido, o cliente confirma. Você **não** fecha no lugar dele. O card some da fila; o histórico fica em **Concluídos**.
-6. Se faltar dado (print, CNPJ, acesso), expanda o card, escreva em **Pedir informação ao cliente** e envie. O card ganha o selo **Aguardando resposta [nome]**. Quando o cliente responder, o selo some e chega aviso para o time. Isso **não** é a coluna Aguardando cliente (Resolvido).
+6. Se o chamado for duplicado ou aberto por engano: expanda o card → **Excluir** → **Excluir chamado**. Some do quadro e de Concluídos. Não dá para desfazer pela tela.
+7. Se faltar dado (print, CNPJ, acesso), expanda o card, escreva em **Pedir informação ao cliente** e envie. O card ganha o selo **Aguardando resposta [nome]**. Quando o cliente responder, o selo some e chega aviso para o time. Isso **não** é a coluna Aguardando cliente (Resolvido).
 
 O cliente também pode abrir sozinho em `/client/chamados` ou no projeto. Lá a visão é lista, não quadro. `/client/tasks` redireciona para Chamados.
 

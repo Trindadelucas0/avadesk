@@ -2,8 +2,8 @@
 
 | Item | Valor |
 |------|--------|
-| Versão do sistema | 3.16.2 — E-mail |
-| Última atualização | 14/09/2026 (Reenviar e-mail na ficha do usuário) |
+| Versão do sistema | 3.17.0 — Chamados |
+| Última atualização | 14/09/2026 (staff exclui chamado: soft delete, some das listas) |
 | Fonte oficial | Este arquivo |
 | Guia de uso | [docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md) |
 | PRD / wireframes | [docs/PRD-NEXUS-PORTAL-CLIENTE.md](docs/PRD-NEXUS-PORTAL-CLIENTE.md) |
@@ -32,6 +32,7 @@ Tutorial: **[docs/GUIA-DE-USO-CLIENT-HUB.md](docs/GUIA-DE-USO-CLIENT-HUB.md)**.
 
 | Versão | Nome | Mudança |
 |--------|------|---------|
+| 3.17.0 | Chamados | ADMIN e MANAGER excluem chamado no card expandido (modal). Soft delete `deleted_at`; some do quadro, de Concluídos, do bootstrap e dos KPIs. Cliente 403. Sem restore na UI. `DELETE /v2/tickets/:id`. Migration `013_ticket_soft_delete.sql`. |
 | 3.16.2 | E-mail | Ficha `/admin/users/:id`: botão **Reenviar e-mail** (`POST /v2/users/:id/welcome`) dispara o mesmo boas-vindas (sem senha) para o e-mail de login. Staff only; inativo 409; rate limit 10/15 min. Sem envio em massa. |
 | 3.16.1 | E-mail | Troca do e-mail de login de um CLIENT (ficha `/admin/users/:id` ou onboarding `PATCH /v2/auth/profile`) dispara o mesmo e-mail de **boas-vindas** no endereço **novo**, sem senha. Só se o valor normalizado mudou. ADMIN/MANAGER e `clients.contact_email` não disparam. Falha de envio não desfaz o PATCH. |
 | 3.16.0 | Usuários e arquivos | Lista de usuários: **Editar** (ficha) e **Excluir** (apaga o login, com confirmação). Não apaga a si mesmo; MANAGER não apaga ADMIN; último admin não some (409). Switch Ativo permanece; desativar o último admin ativo também 409. `updates.author_id` fica NULL se o autor for excluído (`012_user_delete_and_file_crud.sql`). Arquivos (pasta Documentação e demais): staff **renomeia**, **muda de pasta** e **exclui** (disco + linha). Fichas `documents`: título e exclusão. Cliente continua só **Baixar**. |
@@ -127,6 +128,7 @@ Seed: `npm run seed` **não apaga** clientes, usuários, projetos nem updates. S
 | Clientes API | `apps/api/src/v2/rest.ts` (`GET/POST/PATCH /v2/clients`, `GET /v2/clients/cnpj/:cnpj`) |
 | Migration tickets | `db/migrations/004_tickets.sql` |
 | Migration tipo Outra coisa | `db/migrations/011_ticket_type_other.sql` |
+| Migration soft delete chamado | `db/migrations/013_ticket_soft_delete.sql` |
 | Migration exclusão de usuário | `db/migrations/012_user_delete_and_file_crud.sql` (`updates.author_id` SET NULL) |
 | Migration mensagens chamado | `db/migrations/008_ticket_messages.sql` |
 | Chamados API | `apps/api/src/v2/tickets.ts` |
@@ -235,7 +237,7 @@ Home `/admin` (menu Início). Título **Visão geral**. Totais oficiais vêm de 
 | Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
 | KPIs | Parados | Sistemas ativos sem novidade visível >7d | Sim | Cálculo | `GET /v2/admin/overview` | `#precisa` | Card com tom warning se >0 | Só ADMIN/MANAGER; CLIENT 403 | `apps/api/src/v2/overview.ts` |
-| KPIs | Chamados abertos | Tickets `stage <> closed` | Sim | Cálculo | overview `tickets.open` | `/admin/chamados?stage=fix` | Hint com bugs abertos | Snapshot da lista = bootstrap até 100 abertos | `apps/web/src/app/admin/page.tsx` |
+| KPIs | Chamados abertos | Tickets `stage <> closed` e `deleted_at IS NULL` | Sim | Cálculo | overview `tickets.open` | `/admin/chamados?stage=fix` | Hint com bugs abertos | Snapshot da lista = bootstrap até 100 abertos | `apps/web/src/app/admin/page.tsx` |
 | KPIs | Aguard. cliente | Tickets `resolved` | Sim | Cálculo | overview `byStage.resolved` | `/admin/chamados?stage=resolved` | Deep link foca a coluna no quadro | Só cliente confirma (`closed`) | `apps/web/src/app/admin/chamados/page.tsx` |
 | KPIs | Sistemas no ar | `published + maintenance` | Sim | Cálculo | overview `byStatus` | `/admin/projects` | Não inclui paused/dev | Arquivados fora | `apps/web/src/lib/admin-overview.ts` |
 | Portfólio | Mix de status | Contagem por status | Sim | Cálculo | `systems.byStatus` | — | Barra empilhada + chips | Soma = total não arquivado | `apps/web/src/components/hub/status-mix.tsx` |
@@ -299,7 +301,7 @@ Categorias antigas (`contrato` → `contrato_documentacao`; `briefing` / `design
 
 ### 6.7 Chamados
 
-Lista em `/client/chamados`. O cliente só escolhe **Bug** ou **Outra coisa** (ícones no formulário). Staff em `/admin/chamados` usa **Kanban** (colunas Correção / Produção / Aguardando cliente) e ainda abre Implementação, Funcionalidade nova e Rotina, além dos dois tipos do portal. Encerrados **não** entram na lista/quadro: ficam no painel **Concluídos** (De / Até = data em que o cliente confirmou), abaixo do quadro, com borda verde. Visual do quadro: borda/glow e título coloridos por etapa (azul / roxo / âmbar). Filtros Projeto/Tipo/Pendência ficam na mesma faixa do CTA **Abrir chamado**. CTA no projeto do cliente (`/client/projects/[id]`). Card compacto no quadro; clique no cabeçalho expande o contexto (um aberto por vez). Tasks internas saíram da UI; `/admin/tasks` redireciona para chamados.
+Lista em `/client/chamados`. O cliente só escolhe **Bug** ou **Outra coisa** (ícones no formulário). Staff em `/admin/chamados` usa **Kanban** (colunas Correção / Produção / Aguardando cliente) e ainda abre Implementação, Funcionalidade nova e Rotina, além dos dois tipos do portal. Encerrados **não** entram na lista/quadro: ficam no painel **Concluídos** (De / Até = data em que o cliente confirmou), abaixo do quadro, com borda verde. Staff pode **Excluir** (soft delete): some das listas; o cliente não exclui. Visual do quadro: borda/glow e título coloridos por etapa (azul / roxo / âmbar). Filtros Projeto/Tipo/Pendência ficam na mesma faixa do CTA **Abrir chamado**. CTA no projeto do cliente (`/client/projects/[id]`). Card compacto no quadro; clique no cabeçalho expande o contexto (um aberto por vez). Tasks internas saíram da UI; `/admin/tasks` redireciona para chamados.
 
 | Aba / seção | Campo | O que é | Obrigatório | Quem preenche | De onde vem | Para onde conecta | Como funciona | Regra / bloqueio | Onde olhar no código |
 |-------------|-------|---------|-------------|---------------|-------------|-------------------|---------------|------------------|----------------------|
@@ -315,6 +317,7 @@ Lista em `/client/chamados`. O cliente só escolhe **Bug** ou **Outra coisa** (�
 | Concluídos | De / Até | Arquivo dos encerrados | Sim (na consulta) | Admin ou cliente | date | `client_confirmed_at` | `GET /v2/tickets?stage=closed&from=&to=` | Sem datas = 400; intervalo máx. 366 dias; limite 100 | `closed-tickets-panel.tsx` |
 | Card | Etapas | fix / production / resolved | — | Admin move | PATCH | `tickets.stage` | Spinner na atual; V verde nas feitas e em Resolvido; botões no expandido | Não pula etapa; não vai a `closed` | `ticket-card.tsx` |
 | Card expandido | Editar | Corrige tipo, título e campos | Condicional | Quem abriu | PATCH content | `tickets.type` `title` `fields` | Botão só se intacto; form no card | Não-autor 403; outro tenant 404; já iniciado/reaberto 409 | `PATCH /v2/tickets/:id/content` |
+| Card expandido | Excluir | Esconde o chamado das listas | Condicional | ADMIN e MANAGER | DELETE | `tickets.deleted_at` | Modal de confirmação; some do quadro e de Concluídos | CLIENT 403; já excluído/outro tenant/UUID inválido 404; sem restore na UI | `DELETE /v2/tickets/:id` |
 | Card expandido | Baixar PDF | Demanda para o Cursor | Não | Só staff (admin/manager) | GET | arquivo gerado | Texto com rótulos do form + histórico + conversa + nomes das imagens | CLIENT 404 (sem botão); outro tenant 404; sem sessão 401; 30/min (não-staff); não é anexo | `GET /v2/tickets/:id/pdf` |
 | Aviso | E-mail + in-app + push | Copy da etapa (Produção, Resolvido, etc.) | — | Sistema | `notifyUsers` | outbox + `notifications` + Web Push | Omite o ator; falha de envio não desfaz o PATCH | Tenant / staff | `apps/api/src/lib/notify.ts` |
 | Card expandido | Confirmar | Cliente diz que está ok | Condicional | CLIENT | POST confirm | `stage=closed` | `accent` + `lg`; `flex-wrap` + texto quebra no botão; só se `resolved` | Admin 403; outro tenant 404 | `POST /v2/tickets/:id/confirm` |
@@ -330,7 +333,7 @@ Lista em `/client/chamados`. O cliente só escolhe **Bug** ou **Outra coisa** (�
 | Filtro URL | `?stage=` | Foco da coluna ou arquivo | Não | Deep link KPI | query | `fix`/`production`/`resolved` destacam coluna; `closed` abre **Concluídos** (mês atual) | Não esconde as outras colunas abertas | `?type=` ainda filtra | `apps/web/src/app/admin/chamados/page.tsx` |
 | Live | Tela do cliente | Badge/status sem F5 | — | Sistema | SSE `hub.changed` | `GET /v2/events` → bootstrap | Toast “Chamado atualizado” em `/client/*` (1x/5s); card expandido permanece | Sem sessão 401; outro tenant não recebe | `apps/web/src/lib/hub-sync.ts` |
 
-Endpoints: `GET/POST /v2/tickets`, `GET/PATCH /v2/tickets/:id`, `GET /v2/tickets/:id/pdf`, `PATCH /v2/tickets/:id/content`, `POST /v2/tickets/:id/confirm`, `POST /v2/tickets/:id/reopen`, `POST /v2/tickets/:id/messages`, `POST /v2/tickets/:id/attachments`, `GET /v2/tickets/:id/attachments/:attId/download`. `GET /v2/tickets` default `stage=open` (`<> closed`). Arquivo: `stage=closed` exige `from` e `to` (`YYYY-MM-DD`); outro tenant não vê. Bootstrap inclui até 100 chamados **abertos** do tenant (metadados de anexo e mensagens, sem bytes). Mudança de etapa também emite SSE (`reason: ticket`); o cliente autenticado faz `refresh` do bootstrap. Edição de conteúdo emite SSE, sem e-mail/push. Pedido/resposta de informação notifica o destinatário (cliente) ou o time e emite SSE.
+Endpoints: `GET/POST /v2/tickets`, `GET/PATCH /v2/tickets/:id`, `DELETE /v2/tickets/:id` (staff, soft delete), `GET /v2/tickets/:id/pdf`, `PATCH /v2/tickets/:id/content`, `POST /v2/tickets/:id/confirm`, `POST /v2/tickets/:id/reopen`, `POST /v2/tickets/:id/messages`, `POST /v2/tickets/:id/attachments`, `GET /v2/tickets/:id/attachments/:attId/download`. `GET /v2/tickets` default `stage=open` (`<> closed` e `deleted_at IS NULL`). Arquivo: `stage=closed` exige `from` e `to` (`YYYY-MM-DD`); outro tenant não vê; excluídos não entram. Bootstrap inclui até 100 chamados **abertos** do tenant (metadados de anexo e mensagens, sem bytes). Mudança de etapa também emite SSE (`reason: ticket`); exclusão emite o mesmo SSE, sem e-mail/push. O cliente autenticado faz `refresh` do bootstrap. Edição de conteúdo emite SSE, sem e-mail/push. Pedido/resposta de informação notifica o destinatário (cliente) ou o time e emite SSE.
 
 ### 6.8 Perfil (header)
 
@@ -412,7 +415,8 @@ O accent azul continua sendo marca/ação (CTA, foco, item ativo do menu, selo d
 15. Ficha da empresa (`clients`): POST só staff. PATCH staff qualquer id; CLIENT só `id = client_id` (outro tenant 404). Criar/salvar pelo cliente exige nome, e-mail de contato, telefone e WhatsApp. CNPJ unique se preenchido. Consulta CNPJ só no backend (host fixo BrasilAPI).
 16. Chamado: pedido de informação é overlay (`awaiting_reply_from_user_id`), não etapa. Staff POST `messages` kind=request; CLIENT kind=reply (ignora `waitForUserId`). Destinatário só CLIENT do mesmo tenant/projeto. Outro tenant 404. `closed` 409. WaitFor de outro tenant 400.
 17. Cofre `.env` só `admin`. MANAGER/CLIENT → 403. GET lista só `hasContent`/`updatedAt`. Conteúdo só no POST reveal. URL de acesso só http(s).
-18. Lista de chamados: bootstrap e `GET /v2/tickets` default só `stage <> closed`. Consulta de encerrados exige `from`/`to` no servidor (`bindClientFilter` igual); intervalo >366 dias ou datas invertidas → 400. Confirm tira o card da fila da UI.
+18. Lista de chamados: bootstrap e `GET /v2/tickets` default só `stage <> closed` e `deleted_at IS NULL`. Consulta de encerrados exige `from`/`to` no servidor (`bindClientFilter` igual); intervalo >366 dias ou datas invertidas → 400. Confirm tira o card da fila da UI. Exclusão (staff) também tira da fila e do arquivo.
+19. Excluir chamado: só `admin`/`manager` (`DELETE /v2/tickets/:id`). Soft delete (`deleted_at`/`deleted_by`); linha, mensagens e anexos permanecem. CLIENT 403; sem sessão 401; UUID inválido, outro tenant (na leitura) ou já excluído 404. Sem e-mail/push; emite SSE. Sem restore na UI. Rate limit 30/hora (staff incluso; testes pulam). PDF de chamado excluído também 404.
 
 ## 8. Como usar
 
@@ -443,6 +447,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - [ ] `npm run seed` não apaga clientes/projetos; F5 após criar usuário ainda mostra o registro
 - [ ] Chamados: cliente abre bug ou Outra coisa; admin avança etapas; cliente confirma; outro tenant 404; CLIENT POST `feature` 403
 - [ ] Chamados: fila sem encerrados; Concluídos com De/Até lista só o período; `stage=closed` sem datas 400; CLIENT B não vê o arquivo de A
+- [ ] Staff (ADMIN/MANAGER) exclui chamado no card expandido (modal); some do quadro/Concluídos; CLIENT sem botão e DELETE 403; segundo DELETE 404; KPI de abertos não conta `deleted_at`
 - [ ] Chamado: abrir sem imagem; anexar PNG; SVG/PDF 400; outro tenant 404 no download; Implementação sem Prazo desejado
 - [ ] Card expandido: **Baixar PDF** só no admin (aberto e Concluídos); portal cliente sem botão; CLIENT GET pdf 404; staff 200; outro tenant 404; sem sessão 401; PDF contém rótulos do form
 - [ ] Chamado intacto: autor (cliente ou admin) vê **Editar** e grava; outro usuário 403; após Produção ou Reabrir some o botão (API 409)
@@ -486,7 +491,7 @@ E-mail: `RESEND_API_KEY` só no `.env` da API (nunca `NEXT_PUBLIC_*`). `EMAIL_FR
 - Consulta CNPJ: backend chama só `https://brasilapi.com.br/api/cnpj/v1/{14 dígitos}`; rate limit; timeout 5s.
 - SQL parametrizado. Sem secrets no frontend / logs.
 - Cookie: HttpOnly, SameSite=Lax, Secure em production.
-- Rate limit login/forgot/reset, `POST /v2/users/:id/password` e `POST /v2/users/:id/welcome` (staff, 10/15 min), POST de chamado e POST de imagem no chamado (CLIENT, 10/hora e 20/hora), PATCH content de chamado (CLIENT, 10/hora), POST mensagem de chamado (CLIENT, 30/hora), GET PDF do chamado (não-staff 30/min, depois 404), subscribe de push e reveal de senha/`.env` (30/min).
+- Rate limit login/forgot/reset, `POST /v2/users/:id/password` e `POST /v2/users/:id/welcome` (staff, 10/15 min), POST de chamado e POST de imagem no chamado (CLIENT, 10/hora e 20/hora), PATCH content de chamado (CLIENT, 10/hora), POST mensagem de chamado (CLIENT, 30/hora), DELETE de chamado (staff, 30/hora), GET PDF do chamado (não-staff 30/min, depois 404), subscribe de push e reveal de senha/`.env` (30/min).
 - SSE: cookie de sessão; payload sem PII; isolamento por `client_id` no servidor.
 - Web Push: endpoint https (localhost http ok); subscription amarrada ao usuário da sessão. Payload `href` só path relativo (API + SW). Envio com `urgency: high`. `sw.js` com `Cache-Control: no-store`.
 - Uploads: extensão/MIME allowlist + magic bytes nas imagens de chamado, nome armazenado UUID, path traversal bloqueado. JSON da API até 12 MB.

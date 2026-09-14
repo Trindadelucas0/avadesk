@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { TicketForm } from "@/components/hub/ticket-form";
+import { Modal } from "@/components/hub/modal";
 import { useHubStore } from "@/stores/hub-store";
 import type { Ticket, TicketStage, User } from "@/types";
 import { cn, formatRelative } from "@/lib/utils";
+import { isStaffRole } from "@/lib/access";
 import {
   PIPELINE_STAGES,
   canEditTicketContent,
@@ -104,6 +106,7 @@ export function TicketCard({
   projectName,
   dragHandle,
   compact,
+  onDeleted,
 }: {
   ticket: Ticket;
   expanded: boolean;
@@ -112,6 +115,7 @@ export function TicketCard({
   projectName?: string;
   dragHandle?: boolean;
   compact?: boolean;
+  onDeleted?: (id: string) => void;
 }) {
   const session = useHubStore((s) => s.session);
   const users = useHubStore((s) => s.users);
@@ -120,9 +124,11 @@ export function TicketCard({
   const reopenTicket = useHubStore((s) => s.reopenTicket);
   const setTicketStage = useHubStore((s) => s.setTicketStage);
   const postTicketMessage = useHubStore((s) => s.postTicketMessage);
+  const deleteTicket = useHubStore((s) => s.deleteTicket);
   const [busy, setBusy] = useState(false);
   const [reopenNote, setReopenNote] = useState("");
   const [showReopen, setShowReopen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [messageBody, setMessageBody] = useState("");
@@ -153,7 +159,10 @@ export function TicketCard({
   ]);
 
   useEffect(() => {
-    if (!expanded) setEditing(false);
+    if (!expanded) {
+      setEditing(false);
+      setConfirmDelete(false);
+    }
   }, [expanded]);
 
   useEffect(() => {
@@ -171,6 +180,7 @@ export function TicketCard({
   const panelId = `ticket-panel-${ticket.id}`;
   const waitingConfirm = ticket.stage === "resolved";
   const closed = ticket.stage === "closed";
+  const canDelete = mode === "admin" && isStaffRole(session?.role);
 
   const run = async (fn: () => Promise<void>, ok: string) => {
     setBusy(true);
@@ -646,8 +656,53 @@ export function TicketCard({
               })}
             </div>
           ) : null}
+
+          {!editing && canDelete ? (
+            <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="danger"
+                size="sm"
+                className="w-full sm:w-auto"
+                disabled={busy}
+                onClick={() => setConfirmDelete(true)}
+              >
+                Excluir
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
+      <Modal
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Excluir chamado?"
+        description={`O chamado “${ticket.title}” some das listas. Esta ação não pode ser desfeita pela tela.`}
+      >
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => setConfirmDelete(false)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                await deleteTicket(ticket.id);
+                setConfirmDelete(false);
+                onDeleted?.(ticket.id);
+              }, "Chamado excluído")
+            }
+          >
+            Excluir chamado
+          </Button>
+        </div>
+      </Modal>
     </article>
   );
 }

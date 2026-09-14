@@ -67,7 +67,7 @@ v2AdminOverviewRouter.get("/", requireAuth, requireRole("admin", "manager"), asy
            COUNT(*) FILTER (WHERE t.type = 'bug' AND t.stage <> 'closed') AS bugs_open
          FROM tickets t
          INNER JOIN projects p ON p.id = t.project_id
-         WHERE p.archived_at IS NULL`
+         WHERE p.archived_at IS NULL AND t.deleted_at IS NULL`
       ),
       query(
         `SELECT
