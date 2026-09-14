@@ -28,7 +28,7 @@ const HOP = new Set([
 
 function sessionCookieHeader(store: Awaited<ReturnType<typeof cookies>>): string {
   const parts: string[] = [];
-  for (const name of ["avadesk_session", "nexus_session"]) {
+  for (const name of ["avadesk_session", "nexus_session", "avadesk_cid"]) {
     const v = store.get(name)?.value;
     if (v) parts.push(`${name}=${v}`);
   }

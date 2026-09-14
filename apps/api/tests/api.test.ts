@@ -46,7 +46,7 @@ async function resetFixture() {
     await client.query(`
       TRUNCATE TABLE
         email_outbox, audit_logs, notifications, document_versions, documents,
-        files, ticket_attachments, ticket_messages, ticket_events, tickets, tasks, releases, project_credentials, project_env_vault, user_project_access,
+        files, ticket_attachments, ticket_messages, ticket_events, tickets, tasks, releases, project_credentials, project_env_vault, user_project_access, user_client_access,
         password_reset_tokens, push_subscriptions, updates, projects, users, clients
       RESTART IDENTITY CASCADE
     `);
@@ -1379,7 +1379,7 @@ describe("V2 clients", { skip: !postgresReady }, () => {
     assert.equal(res.body.error.code, "VALIDATION");
   });
 
-  it("CLIENT can patch own company", async () => {
+  it("CLIENT cannot patch company", async () => {
     const list = await request(app).get("/v2/clients").set("Cookie", clientCookie);
     assert.equal(list.status, 200);
     const id = list.body.clients[0].id;
@@ -1393,10 +1393,8 @@ describe("V2 clients", { skip: !postgresReady }, () => {
         whatsapp: "11999998888",
         company: "Acme Corporation",
       });
-    assert.equal(res.status, 200);
-    assert.equal(res.body.client.contactEmail, "contato@acme.com");
-    assert.equal(res.body.client.phone, "1133334444");
-    assert.equal(res.body.client.company, "Acme Corporation");
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error.code, "FORBIDDEN");
   });
 
   it("CLIENT B cannot patch CLIENT A company", async () => {
@@ -1411,8 +1409,8 @@ describe("V2 clients", { skip: !postgresReady }, () => {
         phone: "11987654321",
         whatsapp: "11987654321",
       });
-    assert.equal(res.status, 404);
-    assert.equal(res.body.error.code, "NOT_FOUND");
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error.code, "FORBIDDEN");
   });
 
   it("GET cnpj with short value is 400", async () => {
@@ -2157,5 +2155,78 @@ describe("V2 project env vault", { skip: !postgresReady }, () => {
       .send({});
     assert.equal(reveal.status, 200);
     assert.equal(reveal.body.content, payload);
+  });
+});
+
+describe("multi-company CLIENT", { skip: !postgresReady }, () => {
+  it("staff attaches two companies; switcher and IDOR hold", async () => {
+    const companies = await request(app).get("/v2/clients").set("Cookie", adminCookie);
+    const acme = companies.body.clients.find((c: { name: string }) => c.name.startsWith("Acme"));
+    const north = companies.body.clients.find((c: { name: string }) => c.name.startsWith("Northwind"));
+    assert.ok(acme && north);
+    const created = await request(app)
+      .post("/v2/users")
+      .set("Cookie", adminCookie)
+      .send({
+        email: "multi@acme.com",
+        name: "Multi Tenant",
+        role: "CLIENT",
+        memberships: [
+          { clientId: acme.id, accessAllProjects: true, projectIds: [] },
+          { clientId: north.id, accessAllProjects: true, projectIds: [] },
+        ],
+      });
+    assert.equal(created.status, 201);
+    assert.equal(created.body.user.memberships.length, 2);
+
+    const login = await request(app)
+      .post("/v2/auth/login")
+      .send({ email: "multi@acme.com", password: env.seedPassword });
+    assert.equal(login.status, 200);
+    const cookie = cookieFrom(login);
+    const list = await request(app).get("/v2/clients").set("Cookie", cookie);
+    assert.equal(list.body.clients.length, 2);
+
+    const bootA = await request(app).get("/v2/bootstrap").set("Cookie", cookie);
+    assert.equal(bootA.body.projects.length, 1);
+
+    const otherCompany = list.body.clients.find(
+      (c: { id: string }) => c.id !== bootA.body.session.clientId
+    ).id;
+    const switched = await request(app)
+      .post("/v2/me/active-client")
+      .set("Cookie", cookie)
+      .send({ clientId: otherCompany });
+    assert.equal(switched.status, 200);
+    const cookie2 = `${cookie}; ${cookieFrom(switched)}`;
+    const bootB = await request(app).get("/v2/bootstrap").set("Cookie", cookie2);
+    assert.equal(bootB.body.session.clientId, otherCompany);
+    assert.equal(bootB.body.projects.length, 1);
+    assert.notEqual(bootB.body.projects[0].id, bootA.body.projects[0].id);
+
+    const denied = await request(app)
+      .post("/v2/me/active-client")
+      .set("Cookie", cookie)
+      .send({ clientId: "11111111-1111-4111-8111-111111111111" });
+    assert.equal(denied.status, 403);
+
+    const ticketB = await request(app)
+      .post("/v2/tickets")
+      .set("Cookie", adminCookie)
+      .send({
+        projectId: projectBId,
+        type: "bug",
+        title: "Ticket empresa B",
+        fields: { problem: "Falhou no dispatch.", where: "Board" },
+      });
+    assert.equal(ticketB.status, 201);
+    const asWrong = await request(app)
+      .get(`/v2/tickets/${ticketB.body.ticket.id}`)
+      .set("Cookie", cookie);
+    assert.equal(asWrong.status, 404);
+    const asRight = await request(app)
+      .get(`/v2/tickets/${ticketB.body.ticket.id}`)
+      .set("Cookie", cookie2);
+    assert.equal(asRight.status, 200);
   });
 });

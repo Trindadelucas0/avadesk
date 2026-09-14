@@ -23,6 +23,9 @@ export interface AuthUser {
   avatar_initials: string | null;
   instagram_company: string | null;
   instagram_personal: string | null;
+  client_ids?: string[];
+  memberships?: { client_id: string; access_all_projects: boolean }[];
+  active_client_id?: string | null;
 }
 
 export interface ClientRow {

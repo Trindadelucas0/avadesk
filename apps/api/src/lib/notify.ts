@@ -112,8 +112,10 @@ export async function projectClientUserIds(
   excludeUserId?: string | null
 ): Promise<string[]> {
   const recipients = await query<{ id: string; access_all_projects: boolean }>(
-    `SELECT id, COALESCE(access_all_projects, TRUE) AS access_all_projects
-     FROM users WHERE role = 'client' AND active = TRUE AND client_id = $1`,
+    `SELECT u.id, m.access_all_projects
+     FROM users u
+     INNER JOIN user_client_access m ON m.user_id = u.id AND m.client_id = $1
+     WHERE u.role = 'client' AND u.active = TRUE`,
     [clientId]
   );
   const ids: string[] = [];

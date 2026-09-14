@@ -12,6 +12,13 @@ import { handleRouteError, sendError } from "../lib/http.js";
 import { env } from "../lib/env.js";
 import { fromUiRole, sessionDto } from "../lib/dto.js";
 import { sendWelcomeEmail } from "../lib/notify.js";
+import {
+  dtoMemberships,
+  MembershipError,
+  membershipsFromBody,
+  replaceMemberships,
+} from "../lib/memberships.js";
+import { setActiveClientCookie } from "../lib/auth.js";
 import { isSafePushHref } from "../lib/push-href.js";
 import { sendWebPush } from "../lib/push.js";
 import { serializeProject } from "./projects-updates.js";
@@ -111,17 +118,6 @@ const clientStaffPatchSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
-const clientOwnerPatchSchema = z.object({
-  name: z.string().trim().min(1, "Informe o nome.").max(200),
-  contactEmail: z.string().trim().email("E-mail inválido.").max(320),
-  phone: phoneSchema,
-  whatsapp: phoneSchema,
-  company: z.string().trim().max(200).optional(),
-  segment: z.string().trim().max(120).optional(),
-  cnpj: cnpjSchema.optional(),
-  notes: z.string().trim().max(2000).optional(),
-});
-
 function serializeClient(c: Record<string, unknown>) {
   const phone = String(c.phone ?? "");
   const primary = phone || String(c.primary_contact ?? "");
@@ -150,8 +146,10 @@ v2ClientsRouter.get("/", requireAuth, async (req, res) => {
       const rows = await query(`SELECT * FROM clients ORDER BY name ASC`);
       return res.json({ clients: rows.rows.map(serializeClient) });
     }
-    if (!user.client_id) return res.json({ clients: [] });
-    const rows = await query(`SELECT * FROM clients WHERE id = $1`, [user.client_id]);
+    if (!user.client_ids?.length) return res.json({ clients: [] });
+    const rows = await query(`SELECT * FROM clients WHERE id = ANY($1::uuid[]) ORDER BY name ASC`, [
+      user.client_ids,
+    ]);
     return res.json({ clients: rows.rows.map(serializeClient) });
   } catch (err) {
     return handleRouteError(res, err, "[v2/clients]");
@@ -216,14 +214,10 @@ v2ClientsRouter.patch("/:id", requireAuth, async (req, res) => {
   if (!id.success) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
   const user = req.user!;
   if (!isStaff(user)) {
-    if (!user.client_id || user.client_id !== id.data) {
-      return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
-    }
+    return sendError(res, 403, "FORBIDDEN", "Sem permissão.");
   }
 
-  const parsed = isStaff(user)
-    ? clientStaffPatchSchema.safeParse(req.body)
-    : clientOwnerPatchSchema.safeParse(req.body);
+  const parsed = clientStaffPatchSchema.safeParse(req.body);
   if (!parsed.success) return sendError(res, 400, "VALIDATION", validationMessage(parsed));
 
   const data = parsed.data;
@@ -274,14 +268,24 @@ v2ClientsRouter.patch("/:id", requireAuth, async (req, res) => {
 
 export const v2UsersRouter = Router();
 
-function serializeUser(u: Record<string, unknown>, projectIds: string[]) {
+function serializeUser(
+  u: Record<string, unknown>,
+  projectIds: string[],
+  memberships: ReturnType<typeof dtoMemberships> = []
+) {
   const role = fromUiRole(String(u.role)) ?? "client";
+  const accessAll =
+    memberships.length > 0
+      ? memberships.every((m) => m.accessAllProjects)
+      : u.access_all_projects !== false;
   return {
     id: u.id,
     email: u.email,
     name: u.name || "",
     role: role === "admin" ? "ADMIN" : role === "manager" ? "MANAGER" : "CLIENT",
     clientId: u.client_id,
+    clientIds: memberships.map((m) => m.clientId),
+    memberships,
     avatarInitials: u.avatar_initials || "U",
     active: u.active !== false,
     title: u.title ?? "",
@@ -290,8 +294,17 @@ function serializeUser(u: Record<string, unknown>, projectIds: string[]) {
     instagramPersonal: u.instagram_personal,
     profileCompletedAt: u.profile_completed_at,
     projectIds,
-    accessAllProjects: u.access_all_projects !== false,
+    accessAllProjects: accessAll,
   };
+}
+
+async function loadProjectClientMap(projectIds: string[]): Promise<Map<string, string>> {
+  if (projectIds.length === 0) return new Map();
+  const rows = await query<{ id: string; client_id: string }>(
+    `SELECT id, client_id FROM projects WHERE id = ANY($1::uuid[])`,
+    [projectIds]
+  );
+  return new Map(rows.rows.map((p) => [p.id, p.client_id]));
 }
 
 async function serializeUserById(id: string) {
@@ -301,10 +314,17 @@ async function serializeUserById(id: string) {
     `SELECT project_id FROM user_project_access WHERE user_id = $1`,
     [id]
   );
-  return serializeUser(
-    row.rows[0],
-    acc.rows.map((r) => r.project_id)
+  const mem = await query<{ client_id: string; access_all_projects: boolean }>(
+    `SELECT m.client_id, m.access_all_projects
+     FROM user_client_access m
+     INNER JOIN clients c ON c.id = m.client_id
+     WHERE m.user_id = $1
+     ORDER BY c.name ASC`,
+    [id]
   );
+  const projectIds = acc.rows.map((r) => r.project_id);
+  const pmap = await loadProjectClientMap(projectIds);
+  return serializeUser(row.rows[0], projectIds, dtoMemberships(mem.rows, projectIds, pmap));
 }
 
 const passwordLimiter = rateLimit({
@@ -333,14 +353,32 @@ v2UsersRouter.get("/", requireAuth, requireRole("admin", "manager"), async (_req
     const access = await query<{ user_id: string; project_id: string }>(
       `SELECT user_id, project_id FROM user_project_access`
     );
+    const mems = await query<{ user_id: string; client_id: string; access_all_projects: boolean }>(
+      `SELECT user_id, client_id, access_all_projects FROM user_client_access`
+    );
     const map = new Map<string, string[]>();
     for (const a of access.rows) {
       const list = map.get(a.user_id) ?? [];
       list.push(a.project_id);
       map.set(a.user_id, list);
     }
+    const memMap = new Map<string, { client_id: string; access_all_projects: boolean }[]>();
+    for (const m of mems.rows) {
+      const list = memMap.get(m.user_id) ?? [];
+      list.push({ client_id: m.client_id, access_all_projects: m.access_all_projects });
+      memMap.set(m.user_id, list);
+    }
+    const allPids = access.rows.map((a) => a.project_id);
+    const pmap = await loadProjectClientMap(allPids);
     return res.json({
-      users: users.rows.map((u) => serializeUser(u, map.get(u.id as string) ?? [])),
+      users: users.rows.map((u) => {
+        const pids = map.get(u.id as string) ?? [];
+        return serializeUser(
+          u,
+          pids,
+          dtoMemberships(memMap.get(u.id as string) ?? [], pids, pmap)
+        );
+      }),
     });
   } catch (err) {
     return handleRouteError(res, err, "[v2/users]");
@@ -367,6 +405,16 @@ const userSchema = z.object({
   active: z.boolean().optional(),
   accessAllProjects: z.boolean().optional(),
   projectIds: z.array(z.string().uuid()).optional(),
+  memberships: z
+    .array(
+      z.object({
+        clientId: z.string().uuid(),
+        accessAllProjects: z.boolean().optional(),
+        projectIds: z.array(z.string().uuid()).optional(),
+      })
+    )
+    .max(50)
+    .optional(),
 });
 
 v2UsersRouter.post("/", requireAuth, requireRole("admin", "manager"), async (req, res) => {
@@ -374,7 +422,8 @@ v2UsersRouter.post("/", requireAuth, requireRole("admin", "manager"), async (req
   if (!parsed.success) return sendError(res, 400, "VALIDATION", "Dados inválidos.");
   const role = fromUiRole(parsed.data.role);
   if (!role) return sendError(res, 400, "VALIDATION", "Papel inválido.");
-  if (role === "client" && !parsed.data.clientId) {
+  const memberships = role === "client" ? membershipsFromBody(parsed.data) : [];
+  if (role === "client" && (!memberships || memberships.length === 0)) {
     return sendError(res, 400, "VALIDATION", "Vincule o usuário a uma empresa.");
   }
   try {
@@ -382,8 +431,7 @@ v2UsersRouter.post("/", requireAuth, requireRole("admin", "manager"), async (req
     const exists = await query(`SELECT id FROM users WHERE lower(email) = $1`, [email]);
     if (exists.rows[0]) return sendError(res, 400, "VALIDATION", "E-mail já cadastrado.");
     const hash = await bcrypt.hash(env.seedPassword, 12);
-    const accessAll =
-      role !== "client" ? true : parsed.data.accessAllProjects !== false && !(parsed.data.projectIds?.length);
+    const firstClient = role === "client" ? memberships![0].clientId : null;
     const ins = await query(
       `INSERT INTO users (email, password_hash, role, client_id, name, must_complete_profile, access_all_projects, active, avatar_initials)
        VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,$8) RETURNING *`,
@@ -391,33 +439,30 @@ v2UsersRouter.post("/", requireAuth, requireRole("admin", "manager"), async (req
         email,
         hash,
         role,
-        role === "client" ? parsed.data.clientId : null,
+        firstClient,
         parsed.data.name,
         role === "client",
-        accessAll,
+        true,
         parsed.data.name.slice(0, 2).toUpperCase(),
       ]
     );
     const user = ins.rows[0];
-    if (role === "client" && !accessAll && parsed.data.projectIds?.length) {
-      for (const pid of parsed.data.projectIds) {
-        await query(
-          `INSERT INTO user_project_access (user_id, project_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
-          [user.id, pid]
-        );
-      }
-    }
+    await replaceMemberships(String(user.id), role, memberships, firstClient);
     await writeAudit(req.user!.id, "create_user", "user", user.id as string);
     await sendWelcomeEmail({
       userId: String(user.id),
       name: parsed.data.name,
-      clientId: role === "client" ? (parsed.data.clientId ?? null) : null,
+      clientId: firstClient,
     });
+    const dto = await serializeUserById(String(user.id));
     return res.status(201).json({
-      user: serializeUser(user, parsed.data.projectIds ?? []),
+      user: dto,
       tempPassword: env.seedPassword,
     });
   } catch (err) {
+    if (err instanceof MembershipError) {
+      return sendError(res, 400, "VALIDATION", err.message);
+    }
     return handleRouteError(res, err, "[v2/users:create]");
   }
 });
@@ -438,24 +483,22 @@ v2UsersRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async 
     if (!nextRole) return sendError(res, 400, "VALIDATION", "Papel inválido.");
 
     const clientIdInBody = Object.prototype.hasOwnProperty.call(parsed.data, "clientId");
-    let nextClientId: string | null = (existing.client_id as string | null) ?? null;
-    if (nextRole === "admin" || nextRole === "manager") {
-      nextClientId = null;
-    } else if (clientIdInBody) {
-      nextClientId = parsed.data.clientId ?? null;
-    }
-    if (nextRole === "client" && !nextClientId) {
+    const membershipsInBody = Object.prototype.hasOwnProperty.call(parsed.data, "memberships");
+    const nextMemberships =
+      nextRole === "client"
+        ? membershipsInBody || clientIdInBody || parsed.data.projectIds || parsed.data.accessAllProjects !== undefined
+          ? membershipsFromBody({
+              memberships: parsed.data.memberships,
+              clientId: clientIdInBody ? parsed.data.clientId : (existing.client_id as string | null),
+              accessAllProjects: parsed.data.accessAllProjects,
+              projectIds: parsed.data.projectIds,
+            })
+          : null
+        : [];
+
+    if (nextRole === "client" && nextMemberships && nextMemberships.length === 0) {
       return sendError(res, 400, "VALIDATION", "Vincule o usuário a uma empresa.");
     }
-    if (nextClientId) {
-      const company = await query(`SELECT id FROM clients WHERE id = $1`, [nextClientId]);
-      if (!company.rows[0]) return sendError(res, 400, "VALIDATION", "Empresa não encontrada.");
-    }
-
-    const nextAccessAll =
-      nextRole !== "client"
-        ? true
-        : parsed.data.accessAllProjects ?? Boolean(existing.access_all_projects);
 
     const prevEmail = String(existing.email).toLowerCase().trim();
     let nextEmail = prevEmail;
@@ -487,32 +530,35 @@ v2UsersRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async 
          name = COALESCE($2, name),
          active = COALESCE($3, active),
          role = $4,
-         client_id = $5,
-         access_all_projects = $6,
-         email = $7,
-         avatar_initials = COALESCE($8, avatar_initials)
+         email = $5,
+         avatar_initials = COALESCE($6, avatar_initials)
        WHERE id = $1`,
       [
         id.data,
         parsed.data.name ?? null,
         parsed.data.active ?? null,
         nextRole,
-        nextClientId,
-        nextAccessAll,
         nextEmail,
         nextInitials,
       ]
     );
+    let nextClientId = (existing.client_id as string | null) ?? null;
     if (nextRole !== "client") {
-      await query(`DELETE FROM user_project_access WHERE user_id = $1`, [id.data]);
-    } else if (parsed.data.projectIds) {
-      await query(`DELETE FROM user_project_access WHERE user_id = $1`, [id.data]);
-      for (const pid of parsed.data.projectIds) {
-        await query(
-          `INSERT INTO user_project_access (user_id, project_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
-          [id.data, pid]
-        );
+      const cleared = await replaceMemberships(id.data, nextRole, [], null);
+      nextClientId = cleared.clientId;
+    } else if (nextMemberships) {
+      if (nextMemberships.length === 0) {
+        return sendError(res, 400, "VALIDATION", "Vincule o usuário a uma empresa.");
       }
+      const applied = await replaceMemberships(
+        id.data,
+        nextRole,
+        nextMemberships,
+        nextClientId
+      );
+      nextClientId = applied.clientId;
+    } else if (String(existing.role) !== "client") {
+      return sendError(res, 400, "VALIDATION", "Vincule o usuário a uma empresa.");
     }
     const user = await serializeUserById(id.data);
     if (!user) return sendError(res, 404, "NOT_FOUND", "Não encontrado.");
@@ -526,6 +572,9 @@ v2UsersRouter.patch("/:id", requireAuth, requireRole("admin", "manager"), async 
     }
     return res.json({ user });
   } catch (err) {
+    if (err instanceof MembershipError) {
+      return sendError(res, 400, "VALIDATION", err.message);
+    }
     return handleRouteError(res, err, "[v2/users:patch]");
   }
 });
@@ -1353,6 +1402,52 @@ v2SettingsRouter.patch("/", requireAuth, requireRole("admin", "manager"), async 
   }
 });
 
+export const v2MeRouter = Router();
+
+const activeClientLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => (process.env.AVADESK_TEST || "").trim() === "1",
+  message: { error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente mais tarde." } },
+});
+
+v2MeRouter.post("/active-client", requireAuth, activeClientLimiter, async (req, res) => {
+  const parsed = z.object({ clientId: z.string().uuid() }).safeParse(req.body);
+  if (!parsed.success) return sendError(res, 400, "VALIDATION", "Dados inválidos.");
+  const user = req.user!;
+  if (user.role !== "client") {
+    return sendError(res, 403, "FORBIDDEN", "Sem permissão.");
+  }
+  if (!user.client_ids?.includes(parsed.data.clientId)) {
+    return sendError(res, 403, "FORBIDDEN", "Sem permissão.");
+  }
+  try {
+    setActiveClientCookie(res, parsed.data.clientId);
+    await query(`UPDATE users SET client_id = $2 WHERE id = $1 AND role = 'client'`, [
+      user.id,
+      parsed.data.clientId,
+    ]);
+    const mem = user.memberships?.find((m) => m.client_id === parsed.data.clientId);
+    if (mem) {
+      await query(`UPDATE users SET access_all_projects = $2 WHERE id = $1`, [
+        user.id,
+        mem.access_all_projects,
+      ]);
+    }
+    const scoped = {
+      ...user,
+      client_id: parsed.data.clientId,
+      active_client_id: parsed.data.clientId,
+      access_all_projects: mem ? mem.access_all_projects !== false : true,
+    };
+    return res.json({ user: sessionDto(scoped) });
+  } catch (err) {
+    return handleRouteError(res, err, "[v2/me:active-client]");
+  }
+});
+
 export const v2BootstrapRouter = Router();
 
 v2BootstrapRouter.get("/", requireAuth, async (req, res) => {
@@ -1385,8 +1480,8 @@ v2BootstrapRouter.get("/", requireAuth, async (req, res) => {
         ),
         isStaff(user)
           ? query(`SELECT * FROM clients ORDER BY name`)
-          : user.client_id
-            ? query(`SELECT * FROM clients WHERE id = $1`, [user.client_id])
+          : user.client_ids?.length
+            ? query(`SELECT * FROM clients WHERE id = ANY($1::uuid[]) ORDER BY name`, [user.client_ids])
             : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
         query(
           `SELECT u.*, usr.email AS author_email, COALESCE(usr.name, usr.email) AS author_name
@@ -1522,5 +1617,14 @@ function serializeUserLite(u: Record<string, unknown> | AuthUser) {
     profileCompletedAt: rec.profile_completed_at ?? rec.profileCompletedAt,
     projectIds: [] as string[],
     accessAllProjects: rec.access_all_projects !== false && rec.accessAllProjects !== false,
+    clientIds: rec.client_ids ?? rec.clientIds ?? (rec.client_id || rec.clientId ? [rec.client_id ?? rec.clientId] : []),
+    memberships: Array.isArray(rec.memberships)
+      ? (rec.memberships as Array<Record<string, unknown>>).map((m) => ({
+          clientId: String(m.clientId ?? m.client_id ?? ""),
+          accessAllProjects: Boolean(m.accessAllProjects ?? m.access_all_projects !== false),
+          projectIds: Array.isArray(m.projectIds) ? (m.projectIds as string[]) : [],
+        }))
+      : [],
+    activeClientId: rec.active_client_id ?? rec.activeClientId ?? rec.client_id ?? rec.clientId ?? null,
   };
 }

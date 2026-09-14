@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/hub/theme-toggle";
 import { useHubStore } from "@/stores/hub-store";
 import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 export type NavItem = {
   href: string;
@@ -40,6 +41,7 @@ export function AppShell({
   onCommandOpen,
   onQuickUpdate,
   showQuickUpdate,
+  headerLead,
 }: {
   brand: string;
   nav: NavItem[];
@@ -48,6 +50,7 @@ export function AppShell({
   onCommandOpen?: () => void;
   onQuickUpdate?: () => void;
   showQuickUpdate?: boolean;
+  headerLead?: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -253,6 +256,7 @@ export function AppShell({
             </Button>
             <span className="truncate text-sm font-semibold">{brand}</span>
           </div>
+          {headerLead ? <div className="min-w-0 max-w-[14rem] sm:max-w-xs">{headerLead}</div> : null}
           <div className="ml-auto flex items-center gap-1.5">
             {onCommandOpen ? (
               <>

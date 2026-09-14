@@ -1,5 +1,13 @@
 import type { Project, Role, SessionUser, User } from "@/types";
 
+export function userInCompany(
+  user: Pick<User, "clientId" | "memberships">,
+  clientId: string
+): boolean {
+  if (user.memberships?.length) return user.memberships.some((m) => m.clientId === clientId);
+  return user.clientId === clientId;
+}
+
 export function clientAccessibleProjects(
   session: Pick<User, "role" | "clientId" | "projectIds" | "accessAllProjects"> | SessionUser | null,
   projects: Project[]

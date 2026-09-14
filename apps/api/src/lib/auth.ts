@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { query } from "./db.js";
 import { env } from "./env.js";
 import type { AuthUser } from "../types/index.js";
+import { ACTIVE_CLIENT_COOKIE, hydrateAuthUser } from "./memberships.js";
 
 export const COOKIE_NAMES = ["avadesk_session", "nexus_session"] as const;
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
@@ -68,6 +69,16 @@ export function clearSessionCookie(res: Response): void {
     });
   }
   res.clearCookie("clienthub_session", { path: "/" });
+  res.clearCookie(ACTIVE_CLIENT_COOKIE, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+  });
+}
+
+export function setActiveClientCookie(res: Response, clientId: string): void {
+  res.cookie(ACTIVE_CLIENT_COOKIE, clientId, cookieOpts());
 }
 
 export async function getUserFromRequest(req: Request): Promise<AuthUser | null> {
@@ -96,5 +107,5 @@ export async function getUserFromRequest(req: Request): Promise<AuthUser | null>
   );
   const user = result.rows[0];
   if (!user || user.active === false) return null;
-  return user;
+  return hydrateAuthUser(user, cookies[ACTIVE_CLIENT_COOKIE]);
 }

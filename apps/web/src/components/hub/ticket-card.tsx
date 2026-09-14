@@ -11,7 +11,7 @@ import { Modal } from "@/components/hub/modal";
 import { useHubStore } from "@/stores/hub-store";
 import type { Ticket, TicketStage, User } from "@/types";
 import { cn, formatRelative } from "@/lib/utils";
-import { isStaffRole } from "@/lib/access";
+import { isStaffRole, userInCompany } from "@/lib/access";
 import {
   PIPELINE_STAGES,
   canEditTicketContent,
@@ -139,10 +139,13 @@ export function TicketCard({
   const recipients = useMemo(() => {
     return users.filter((u: User) => {
       if (u.role !== "CLIENT" || !u.active) return false;
-      if (project && u.clientId !== project.clientId) return false;
+      if (project && !userInCompany(u, project.clientId)) return false;
+      const mem = u.memberships?.find((m) => m.clientId === project?.clientId);
+      const allProjects = mem ? mem.accessAllProjects : u.accessAllProjects;
+      const pids = mem ? mem.projectIds : u.projectIds;
       if (
-        u.accessAllProjects ||
-        u.projectIds.includes(ticket.projectId) ||
+        allProjects ||
+        pids.includes(ticket.projectId) ||
         u.id === ticket.createdByUserId ||
         u.id === ticket.awaitingReplyFromUserId
       ) {

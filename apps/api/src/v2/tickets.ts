@@ -409,12 +409,12 @@ async function eligibleClientUser(
   const row = await query(
     `SELECT u.id
      FROM users u
+     INNER JOIN user_client_access m ON m.user_id = u.id AND m.client_id = $2
      WHERE u.id = $1
        AND u.role = 'client'
        AND u.active = TRUE
-       AND u.client_id = $2
        AND (
-         COALESCE(u.access_all_projects, TRUE)
+         m.access_all_projects
          OR EXISTS (
            SELECT 1 FROM user_project_access a
            WHERE a.user_id = u.id AND a.project_id = $3

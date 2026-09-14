@@ -45,7 +45,10 @@ function ClientShell({ children }: { children: React.ReactNode }) {
   const session = useHubStore((s) => s.session);
   const users = useHubStore((s) => s.users);
   const organizationName = useHubStore((s) => s.organizationName);
+  const clients = useHubStore((s) => s.clients);
+  const setActiveClient = useHubStore((s) => s.setActiveClient);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   const user = users.find((u) => u.id === session?.id);
   const mustComplete = Boolean(user?.mustCompleteProfile);
@@ -84,6 +87,44 @@ function ClientShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const memberClients = clients.filter((c) =>
+    (session?.clientIds ?? (session?.clientId ? [session.clientId] : [])).includes(c.id)
+  );
+  const noCompany = Boolean(session) && session?.role === "CLIENT" && memberClients.length === 0;
+  const headerLead =
+    memberClients.length > 1 ? (
+      <label className="flex min-w-0 items-center gap-2 text-xs text-[var(--text-muted)]">
+        <span className="hidden shrink-0 sm:inline">Empresa</span>
+        <select
+          className="hub-control min-w-0 max-w-full py-1 text-sm"
+          aria-label="Empresa ativa"
+          disabled={switching}
+          value={session?.clientId ?? memberClients[0]?.id ?? ""}
+          onChange={(e) => {
+            const next = e.target.value;
+            setSwitching(true);
+            void setActiveClient(next).finally(() => setSwitching(false));
+          }}
+        >
+          {memberClients.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    ) : memberClients.length === 1 ? (
+      <span className="truncate text-xs text-[var(--text-muted)]">{memberClients[0].name}</span>
+    ) : null;
+
+  if (noCompany) {
+    return (
+      <div className="p-8 text-sm text-[var(--text-secondary)]">
+        Conta sem empresa. Peça ao time para vincular seu usuário.
+      </div>
+    );
+  }
+
   return (
     <>
       <AppShell
@@ -91,6 +132,7 @@ function ClientShell({ children }: { children: React.ReactNode }) {
         nav={navItems}
         mobileNav={mobileNav}
         onCommandOpen={() => setCmdOpen(true)}
+        headerLead={headerLead}
       >
         {children}
       </AppShell>

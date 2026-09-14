@@ -16,6 +16,13 @@ import { EmptyState } from "@/components/hub/states";
 import { DEMO_PASSWORD } from "@/lib/mock/seed";
 import { useHubStore } from "@/stores/hub-store";
 import type { Role, User } from "@/types";
+import {
+  UserMembershipFields,
+  emptyMembershipDrafts,
+  membershipError,
+  selectedMemberships,
+  type CompanyMembershipDraft,
+} from "@/components/hub/user-membership-fields";
 
 const ROLES: Role[] = ["ADMIN", "MANAGER", "CLIENT"];
 const ROLE_FILTERS: Array<{ id: "ALL" | Role; label: string }> = [
@@ -56,9 +63,8 @@ export default function AdminUsersPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("CLIENT");
-  const [clientId, setClientId] = useState<string>("");
-  const [accessAll, setAccessAll] = useState(true);
-  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [enabledClientIds, setEnabledClientIds] = useState<string[]>([]);
+  const [membershipDrafts, setMembershipDrafts] = useState<Record<string, CompanyMembershipDraft>>({});
   const [createdAccess, setCreatedAccess] = useState<{
     email: string;
     tempPassword: string;
@@ -74,8 +80,6 @@ export default function AdminUsersPage() {
     void refreshUsers();
   }, [refreshUsers]);
 
-  const selectedClientId = clientId || clients[0]?.id || "";
-  const companyProjects = projects.filter((p) => p.clientId === selectedClientId);
   const clientInviteBlocked = role === "CLIENT" && clients.length === 0;
 
   const filteredUsers = useMemo(() => {
@@ -89,13 +93,9 @@ export default function AdminUsersPage() {
 
   const openCreate = () => {
     setRole("CLIENT");
-    setAccessAll(true);
-    setSelectedProjects([]);
+    setMembershipDrafts(emptyMembershipDrafts(clients));
+    setEnabledClientIds(clients[0] ? [clients[0].id] : []);
     setOpen(true);
-  };
-
-  const toggleProject = (id: string) => {
-    setSelectedProjects((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   };
 
   const submit = async () => {
@@ -103,13 +103,12 @@ export default function AdminUsersPage() {
       toast.error("Crie uma empresa (cliente) antes de criar um usuário CLIENT.");
       return;
     }
-    if (role === "CLIENT" && !selectedClientId) {
-      toast.error("Selecione a empresa.");
-      return;
-    }
-    if (role === "CLIENT" && companyProjects.length > 0 && !accessAll && selectedProjects.length === 0) {
-      toast.error("Selecione ao menos um projeto, ou marque todos os projetos da empresa.");
-      return;
+    if (role === "CLIENT") {
+      const err = membershipError(enabledClientIds, membershipDrafts, projects);
+      if (err) {
+        toast.error(err);
+        return;
+      }
     }
     if (role !== "CLIENT" && !name.trim()) {
       toast.error("Informe nome e e-mail.");
@@ -120,14 +119,17 @@ export default function AdminUsersPage() {
       return;
     }
 
+    const memberships =
+      role === "CLIENT" ? selectedMemberships(membershipDrafts, enabledClientIds) : [];
     const result = await upsertUser({
       name: name.trim() || "Convidado",
       email: email.trim(),
       role,
-      clientId: role === "CLIENT" ? selectedClientId : null,
+      clientId: memberships[0]?.clientId ?? null,
       active: true,
-      accessAllProjects: role !== "CLIENT" || accessAll || companyProjects.length === 0,
-      projectIds: role === "CLIENT" && !accessAll ? selectedProjects : [],
+      accessAllProjects: memberships[0]?.accessAllProjects ?? true,
+      projectIds: memberships.flatMap((m) => (m.accessAllProjects ? [] : m.projectIds)),
+      memberships,
     });
 
     if (!result.ok) {
@@ -147,9 +149,8 @@ export default function AdminUsersPage() {
     setName("");
     setEmail("");
     setRole("CLIENT");
-    setClientId("");
-    setAccessAll(true);
-    setSelectedProjects([]);
+    setEnabledClientIds([]);
+    setMembershipDrafts({});
     setOpen(false);
   };
 
@@ -157,9 +158,16 @@ export default function AdminUsersPage() {
     const projectLabel =
       u.role !== "CLIENT"
         ? "—"
-        : u.accessAllProjects || !u.projectIds?.length
-          ? "Todos os projetos"
+        : (u.memberships ?? []).some((m) => m.accessAllProjects) ||
+            (!u.memberships?.length && (u.accessAllProjects || !u.projectIds?.length))
+          ? u.memberships && u.memberships.length > 1
+            ? "Vários projetos"
+            : "Todos os projetos"
           : u.projectIds.map((id) => projectMap[id] ?? id).join(", ");
+    const companyLabel =
+      u.role !== "CLIENT"
+        ? "—"
+        : (u.memberships?.length ? u.memberships.map((m) => clientMap[m.clientId] ?? m.clientId) : u.clientId ? [clientMap[u.clientId] ?? "—"] : []).join(", ") || "—";
     return {
       name: (
         <Link href={`/admin/users/${u.id}`} className="block hover:text-[var(--accent)] hub-focus rounded-sm">
@@ -175,7 +183,7 @@ export default function AdminUsersPage() {
           ) : null}
         </div>
       ),
-      client: u.clientId ? (clientMap[u.clientId] ?? "—") : "—",
+      client: companyLabel,
       projects: <span className="text-xs text-[var(--text-secondary)]">{projectLabel}</span>,
       active: (
         <div className="flex items-center gap-2">
@@ -336,73 +344,14 @@ export default function AdminUsersPage() {
             </select>
           </div>
           {role === "CLIENT" ? (
-            <>
-              <div>
-                <Label htmlFor="u-client">Empresa</Label>
-                {clients.length === 0 ? (
-                  <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                    Não há empresas.{" "}
-                    <Link href="/admin/clients" className="text-[var(--accent)] hover:underline">
-                      Criar empresa
-                    </Link>{" "}
-                    primeiro.
-                  </p>
-                ) : (
-                  <select
-                    id="u-client"
-                    className="mt-1.5 hub-control"
-                    value={selectedClientId}
-                    onChange={(e) => {
-                      setClientId(e.target.value);
-                      setSelectedProjects([]);
-                      setAccessAll(true);
-                    }}
-                  >
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              {companyProjects.length === 0 ? (
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Esta empresa ainda não tem projetos. O usuário entra; quando você criar projetos, marque “todos”
-                  ou edite o acesso.
-                </p>
-              ) : (
-                <div>
-                  <Label>Projetos que este usuário pode ver</Label>
-                  <label className="mt-2 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                    <input
-                      type="checkbox"
-                      checked={accessAll}
-                      onChange={(e) => {
-                        setAccessAll(e.target.checked);
-                        if (e.target.checked) setSelectedProjects(companyProjects.map((p) => p.id));
-                      }}
-                      className="h-4 w-4 rounded border-[var(--border)]"
-                    />
-                    Todos os projetos desta empresa
-                  </label>
-                  <div className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-md border border-[var(--border)] p-3">
-                    {companyProjects.map((p) => (
-                      <label key={p.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={accessAll || selectedProjects.includes(p.id)}
-                          disabled={accessAll}
-                          onChange={() => toggleProject(p.id)}
-                          className="h-4 w-4 rounded border-[var(--border)]"
-                        />
-                        {p.name}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
+            <UserMembershipFields
+              clients={clients}
+              projects={projects}
+              enabledIds={enabledClientIds}
+              drafts={membershipDrafts}
+              onEnabledIds={setEnabledClientIds}
+              onDrafts={setMembershipDrafts}
+            />
           ) : null}
           <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[var(--border)] bg-[var(--bg-elevated)] pt-3">
             <Button variant="ghost" type="button" onClick={() => setOpen(false)}>

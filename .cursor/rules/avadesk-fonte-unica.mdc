@@ -1,0 +1,14 @@
+---
+description: Avadesk vive só neste repo. Não editar d:\avadesk\sistema nem avadesk-antigo.
+alwaysApply: true
+---
+
+# Avadesk — fonte única
+
+Este diretório (`d:\avadesk\avadesk`) é o único código do produto. GitHub `main` → VPS `/opt/avadesk` → https://suporte.avadesk.com.br.
+
+Não criar, editar, apagar nem rodar npm/migrate/dev em `d:\avadesk\sistema` ou `d:\avadesk\avadesk-antigo`. Não copiar uma pasta por cima desta.
+
+Se o arquivo aberto for do antigo: parar e continuar neste repo.
+
+Deploy: `ATUALIZAR-VPS.txt`. Nunca `deploy/avadesk-deploy.sh`. Nunca recriar `avadesk-pg`.

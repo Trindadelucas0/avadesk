@@ -42,9 +42,12 @@ export interface User {
   instagramCompany?: string;
   instagramPersonal?: string;
   profileCompletedAt?: string | null;
-  /** Projetos que este usuário CLIENT pode ver. Vazio + accessAllProjects = todos da empresa. */
+  /** Projetos que este usuário CLIENT pode ver. Vazio + accessAllProjects = todos da empresa ativa. */
   projectIds: string[];
   accessAllProjects: boolean;
+  clientIds?: string[];
+  memberships?: Array<{ clientId: string; accessAllProjects: boolean; projectIds: string[] }>;
+  activeClientId?: string | null;
 }
 
 export interface Client {
@@ -269,6 +272,9 @@ export interface SessionUser {
   mustCompleteProfile: boolean;
   projectIds: string[];
   accessAllProjects: boolean;
+  clientIds?: string[];
+  memberships?: Array<{ clientId: string; accessAllProjects: boolean; projectIds: string[] }>;
+  activeClientId?: string | null;
 }
 
 export type NotificationPrefs = {

@@ -62,6 +62,13 @@ export function sessionDto(user: AuthUser) {
     name: user.name || user.email.split("@")[0],
     role: toUiRole(user.role),
     clientId: user.client_id,
+    clientIds: user.client_ids ?? (user.client_id ? [user.client_id] : []),
+    memberships: (user.memberships ?? []).map((m) => ({
+      clientId: m.client_id,
+      accessAllProjects: m.access_all_projects !== false,
+      projectIds: [] as string[],
+    })),
+    activeClientId: user.active_client_id ?? user.client_id,
     avatarInitials: user.avatar_initials || (user.name || "U").slice(0, 2).toUpperCase(),
     mustCompleteProfile: Boolean(user.must_complete_profile),
     projectIds: [] as string[],

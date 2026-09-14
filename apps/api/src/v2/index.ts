@@ -7,6 +7,7 @@ import {
   v2ClientsRouter,
   v2DocumentsRouter,
   v2FilesRouter,
+  v2MeRouter,
   v2NotificationsRouter,
   v2ReleasesRouter,
   v2SettingsRouter,
@@ -21,6 +22,7 @@ import { v2EventsRouter } from "./events.js";
 export const v2Router = Router();
 
 v2Router.use("/auth", v2AuthRouter);
+v2Router.use("/me", v2MeRouter);
 v2Router.use("/bootstrap", v2BootstrapRouter);
 v2Router.use("/events", v2EventsRouter);
 v2Router.use("/admin/overview", v2AdminOverviewRouter);

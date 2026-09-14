@@ -51,6 +51,7 @@ export type ProjectEnvMeta = {
 
 interface HubStore extends MockStoreState {
   hydrate: () => Promise<void>;
+  setActiveClient: (clientId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   login: (
     email: string,
     password: string,
@@ -78,7 +79,12 @@ interface HubStore extends MockStoreState {
     cnpj?: string;
     notes?: string;
   }) => Promise<void>;
-  upsertUser: (data: Partial<User> & { email: string; name: string; role: User["role"] }) => Promise<
+  upsertUser: (data: Partial<User> & {
+    email: string;
+    name: string;
+    role: User["role"];
+    memberships?: Array<{ clientId: string; accessAllProjects: boolean; projectIds: string[] }>;
+  }) => Promise<
     { ok: true; user: User; tempPassword?: string } | { ok: false; error: string }
   >;
   completeClientProfile: (
@@ -100,6 +106,7 @@ interface HubStore extends MockStoreState {
       active: boolean;
       accessAllProjects: boolean;
       projectIds: string[];
+      memberships?: Array<{ clientId: string; accessAllProjects: boolean; projectIds: string[] }>;
     }
   ) => Promise<{ ok: true; user: User } | { ok: false; error: string }>;
   setUserPassword: (
@@ -189,6 +196,9 @@ function applyUser(
             name: user.name,
             role: user.role,
             clientId: user.clientId,
+            clientIds: user.clientIds,
+            memberships: user.memberships,
+            activeClientId: user.activeClientId,
             avatarInitials: user.avatarInitials,
             mustCompleteProfile: user.mustCompleteProfile,
             projectIds: user.projectIds,
@@ -223,6 +233,19 @@ export const useHubStore = create<HubStore>()((set, get) => ({
   hydrate: async () => {
     await get().restoreSession();
     set({ hydrated: true });
+  },
+
+  setActiveClient: async (clientId) => {
+    try {
+      await v2<{ user: SessionUser }>("/me/active-client", {
+        method: "POST",
+        json: { clientId },
+      });
+      await get().restoreSession();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof ApiError ? err.message : "Não foi possível trocar a empresa." };
+    }
   },
 
   restoreSession: async () => {
@@ -453,12 +476,13 @@ export const useHubStore = create<HubStore>()((set, get) => ({
             active: data.active,
             projectIds: data.projectIds,
             accessAllProjects: data.accessAllProjects,
+            memberships: data.memberships,
           },
         });
         set((s) => ({ users: s.users.map((u) => (u.id === res.user.id ? res.user : u)) }));
         return { ok: true, user: res.user };
       }
-      if (data.role === "CLIENT" && !data.clientId) {
+      if (data.role === "CLIENT" && !(data.memberships?.length || data.clientId)) {
         return { ok: false, error: "Vincule o usuário a uma empresa." };
       }
       const name = data.name.trim() || (data.role === "CLIENT" ? "Convidado" : "");
@@ -472,6 +496,7 @@ export const useHubStore = create<HubStore>()((set, get) => ({
           clientId: data.clientId ?? null,
           accessAllProjects: data.accessAllProjects,
           projectIds: data.projectIds ?? [],
+          memberships: data.memberships,
         },
       });
       set((s) => ({ users: [...s.users, res.user] }));
@@ -588,7 +613,7 @@ export const useHubStore = create<HubStore>()((set, get) => ({
     if (!isValidEmail(email)) return { ok: false, error: "E-mail inválido." };
     const name = data.name.trim();
     if (!name) return { ok: false, error: "Informe o nome." };
-    if (data.role === "CLIENT" && !data.clientId) {
+    if (data.role === "CLIENT" && !(data.memberships?.length || data.clientId)) {
       return { ok: false, error: "Vincule o usuário a uma empresa." };
     }
     try {
@@ -602,6 +627,7 @@ export const useHubStore = create<HubStore>()((set, get) => ({
           active: data.active,
           projectIds: data.projectIds,
           accessAllProjects: data.accessAllProjects,
+          memberships: data.memberships,
         },
       });
       applyUser(set, res.user);

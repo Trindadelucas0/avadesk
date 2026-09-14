@@ -15,6 +15,13 @@ import { PageHeader } from "@/components/hub/page-header";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/hub/states";
 import { useHubStore } from "@/stores/hub-store";
 import type { Role } from "@/types";
+import {
+  UserMembershipFields,
+  emptyMembershipDrafts,
+  membershipError,
+  selectedMemberships,
+  type CompanyMembershipDraft,
+} from "@/components/hub/user-membership-fields";
 
 const ROLES: Role[] = ["ADMIN", "MANAGER", "CLIENT"];
 
@@ -69,19 +76,15 @@ export default function AdminUserDetailPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("CLIENT");
-  const [clientId, setClientId] = useState("");
+  const [enabledClientIds, setEnabledClientIds] = useState<string[]>([]);
+  const [membershipDrafts, setMembershipDrafts] = useState<Record<string, CompanyMembershipDraft>>({});
   const [active, setActive] = useState(true);
-  const [accessAll, setAccessAll] = useState(true);
-  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
-  const selectedClientId = clientId || clients[0]?.id || "";
-  const companyProjects = projects.filter((p) => p.clientId === selectedClientId);
 
   const load = () => {
     setLoading(true);
@@ -121,17 +124,22 @@ export default function AdminUserDetailPage() {
     setName(user.name);
     setEmail(user.email);
     setRole(user.role);
-    setClientId(user.clientId ?? "");
     setActive(user.active);
-    setAccessAll(user.role !== "CLIENT" || user.accessAllProjects || !user.projectIds?.length);
-    setSelectedProjects(user.projectIds ?? []);
-  }, [user]);
-
-  const toggleProject = (projectId: string) => {
-    setSelectedProjects((cur) =>
-      cur.includes(projectId) ? cur.filter((x) => x !== projectId) : [...cur, projectId]
-    );
-  };
+    const mems =
+      user.memberships && user.memberships.length > 0
+        ? user.memberships
+        : user.clientId
+          ? [
+              {
+                clientId: user.clientId,
+                accessAllProjects: user.accessAllProjects || !user.projectIds?.length,
+                projectIds: user.projectIds ?? [],
+              },
+            ]
+          : [];
+    setEnabledClientIds(mems.map((m) => m.clientId));
+    setMembershipDrafts(emptyMembershipDrafts(clients, mems));
+  }, [user, clients]);
 
   const saveProfile = async () => {
     if (!name.trim()) {
@@ -142,23 +150,25 @@ export default function AdminUserDetailPage() {
       toast.error("Informe o e-mail.");
       return;
     }
-    if (role === "CLIENT" && !selectedClientId) {
-      toast.error("Selecione a empresa.");
-      return;
+    if (role === "CLIENT") {
+      const err = membershipError(enabledClientIds, membershipDrafts, projects);
+      if (err) {
+        toast.error(err);
+        return;
+      }
     }
-    if (role === "CLIENT" && companyProjects.length > 0 && !accessAll && selectedProjects.length === 0) {
-      toast.error("Selecione ao menos um projeto, ou marque todos os projetos da empresa.");
-      return;
-    }
+    const memberships =
+      role === "CLIENT" ? selectedMemberships(membershipDrafts, enabledClientIds) : [];
     setSaving(true);
     const result = await updateUser(id, {
       name: name.trim(),
       email: email.trim(),
       role,
-      clientId: role === "CLIENT" ? selectedClientId : null,
+      clientId: memberships[0]?.clientId ?? null,
       active,
-      accessAllProjects: role !== "CLIENT" || accessAll || companyProjects.length === 0,
-      projectIds: role === "CLIENT" && !accessAll ? selectedProjects : [],
+      accessAllProjects: memberships[0]?.accessAllProjects ?? true,
+      projectIds: memberships.flatMap((m) => (m.accessAllProjects ? [] : m.projectIds)),
+      memberships,
     });
     setSaving(false);
     if (!result.ok) {
@@ -286,35 +296,9 @@ export default function AdminUserDetailPage() {
             </select>
           </div>
           {role === "CLIENT" ? (
-            <div>
-              <Label htmlFor="ud-client">Empresa</Label>
-              {clients.length === 0 ? (
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                  Não há empresas.{" "}
-                  <Link href="/admin/clients" className="text-[var(--accent)] hover:underline">
-                    Criar empresa
-                  </Link>
-                  .
-                </p>
-              ) : (
-                <select
-                  id="ud-client"
-                  className="mt-1.5 hub-control"
-                  value={selectedClientId}
-                  onChange={(e) => {
-                    setClientId(e.target.value);
-                    setSelectedProjects([]);
-                    setAccessAll(true);
-                  }}
-                >
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
+            <p className="self-end text-sm text-[var(--text-secondary)]">
+              Marque uma ou mais empresas abaixo.
+            </p>
           ) : (
             <p className="self-end text-sm text-[var(--text-secondary)]">
               ADMIN e MANAGER não ficam vinculados a uma empresa.
@@ -322,41 +306,14 @@ export default function AdminUserDetailPage() {
           )}
         </div>
         {role === "CLIENT" ? (
-          companyProjects.length === 0 ? (
-            <p className="mt-4 text-sm text-[var(--text-secondary)]">
-              Esta empresa ainda não tem projetos. Quando existirem, você marca o acesso aqui.
-            </p>
-          ) : (
-            <div className="mt-4">
-              <Label>Projetos que este usuário pode ver</Label>
-              <label className="mt-2 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                <input
-                  type="checkbox"
-                  checked={accessAll}
-                  onChange={(e) => {
-                    setAccessAll(e.target.checked);
-                    if (e.target.checked) setSelectedProjects(companyProjects.map((p) => p.id));
-                  }}
-                  className="h-4 w-4 rounded border-[var(--border)]"
-                />
-                Todos os projetos desta empresa
-              </label>
-              <div className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-md border border-[var(--border)] p-3">
-                {companyProjects.map((p) => (
-                  <label key={p.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={accessAll || selectedProjects.includes(p.id)}
-                      disabled={accessAll}
-                      onChange={() => toggleProject(p.id)}
-                      className="h-4 w-4 rounded border-[var(--border)]"
-                    />
-                    {p.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )
+          <UserMembershipFields
+            clients={clients}
+            projects={projects}
+            enabledIds={enabledClientIds}
+            drafts={membershipDrafts}
+            onEnabledIds={setEnabledClientIds}
+            onDrafts={setMembershipDrafts}
+          />
         ) : null}
       </section>
 

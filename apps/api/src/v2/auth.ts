@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { query } from "../lib/db.js";
 import { clearSessionCookie, setSessionCookie } from "../lib/auth.js";
+import { ACTIVE_CLIENT_COOKIE, hydrateAuthUser } from "../lib/memberships.js";
 import { requireAuth } from "../middleware/auth.js";
 import { writeAudit } from "../lib/audit.js";
 import { sessionDto } from "../lib/dto.js";
@@ -73,9 +74,10 @@ v2AuthRouter.post("/login", loginLimiter, async (req, res) => {
       return sendError(res, 401, "INVALID_CREDENTIALS", GENERIC_LOGIN);
     }
 
+    const scoped = await hydrateAuthUser(user, req.cookies?.[ACTIVE_CLIENT_COOKIE]);
     setSessionCookie(res, user.id);
     await writeAudit(user.id, "login", "user", user.id, null, ip);
-    return res.json({ user: sessionDto(user) });
+    return res.json({ user: sessionDto(scoped) });
   } catch (err) {
     return handleRouteError(res, err, "[v2/login]");
   }
